@@ -741,7 +741,7 @@ static void adjust_primary_display_layer(omap_hwc_device_t *hwc_dev, struct dss2
 
 static bool can_scale(uint32_t src_w, uint32_t src_h, uint32_t dst_w, uint32_t dst_h, bool is_2d,
                       struct dsscomp_display_info *dis, struct dsscomp_platform_info *limits,
-                      uint32_t pclk, IMG_native_handle_t *handle)
+                      uint32_t pclk, IMG_native_handle_t *handle __unused)
 {
     uint32_t fclk = limits->fclk / 1000;
     uint32_t min_src_w = DIV_ROUND_UP(src_w, is_2d ? limits->max_xdecim_2d : limits->max_xdecim_1d);
@@ -769,10 +769,6 @@ static bool can_scale(uint32_t src_w, uint32_t src_h, uint32_t dst_w, uint32_t d
     /* :HACK: limit horizontal downscale well below theoretical limit as we saw display artifacts */
     if (dst_w * 4 < src_w)
         return false;
-
-    if (handle)
-        if (get_format_bpp(handle->iFormat) == 32 && src_w > 1280 && dst_w * 3 < src_w)
-            return false;
 
     /* max horizontal downscale is 4, or the fclk/pixclk */
     if (fclk > pclk * limits->max_downscale)
