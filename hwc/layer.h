@@ -20,8 +20,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef struct omap_hwc_device omap_hwc_device_t;
-
 struct layer_statistics {
     uint32_t count;
     uint32_t composable;
