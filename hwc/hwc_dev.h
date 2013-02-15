@@ -30,6 +30,7 @@
 #include "hal_public.h"
 #include "blitter.h"
 #include "display.h"
+#include "dsscomp.h"
 
 struct omap_hwc_module {
     hwc_module_t base;
@@ -46,17 +47,11 @@ struct omap_hwc_device {
     pthread_t hdmi_thread;
     pthread_mutex_t lock;
 
-    struct dsscomp_platform_info platform_limits;
-
     /* currently we use only two FB devices, but decalring for MAX_DISPLAYS */
     IMG_framebuffer_device_public_t *fb_dev[MAX_DISPLAYS];
 
     int fb_fd[MAX_DISPLAYS];     /* file descriptor for /dev/fbx */
-    int dsscomp_fd;              /* file descriptor for /dev/dsscomp */
     int pipe_fds[2];             /* pipe to event thread */
-
-    int img_mem_size;           /* size of fb for hdmi */
-    void *img_mem_ptr;          /* start of fb for hdmi */
 
     int flags_rgb_order;
     int flags_nv12_only;
@@ -65,18 +60,12 @@ struct omap_hwc_device {
     int force_sgx;
     int idle;
 
-    int last_ext_ovls;           /* # of overlays on external/internal display for last composition */
-    int last_int_ovls;
-
+    dsscomp_state_t dsscomp;
     blitter_config_t blitter;
 
     display_t *displays[MAX_DISPLAYS];
     float lcd_xpy;                      /* pixel ratio for UI */
     bool ext_disp_state;
 };
-
-bool can_scale(uint32_t src_w, uint32_t src_h, uint32_t dst_w, uint32_t dst_h, bool is_2d,
-               struct dsscomp_display_info *dis, struct dsscomp_platform_info *limits,
-               uint32_t pclk);
 
 #endif
