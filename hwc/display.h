@@ -102,6 +102,7 @@ struct display {
     layer_statistics_t layer_stats;
     composition_t composition;
     display_transform_t transform;
+    struct dsscomp_display_info fb_info;
 };
 typedef struct display display_t;
 
