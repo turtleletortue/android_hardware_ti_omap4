@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <hardware/hwcomposer.h>
+
 #include "blitter.h"
 #include "layer.h"
 
@@ -154,6 +156,22 @@ struct external_hdmi_display {
 };
 typedef struct external_hdmi_display external_hdmi_display_t;
 
+struct wfd_display {
+    bool use_wb;
+    hwc_layer_1_t wb_layer;
+    int wb_sync_id;
+    uint32_t wb_mode;
+
+    display_t base; // variable sized type
+};
+typedef struct wfd_display wfd_display_t;
+
+struct external_wfd_display {
+    external_display_t ext;
+    wfd_display_t wfd; // variable sized type
+};
+typedef struct external_wfd_display external_wfd_display_t;
+
 int init_hdmi_display(omap_hwc_device_t *hwc_dev, int disp);
 
 int init_primary_display(omap_hwc_device_t *hwc_dev);
@@ -177,6 +195,7 @@ bool is_supported_display(omap_hwc_device_t *hwc_dev, int disp);
 bool is_active_display(omap_hwc_device_t *hwc_dev, int disp);
 bool is_lcd_display(omap_hwc_device_t *hwc_dev, int disp);
 bool is_hdmi_display(omap_hwc_device_t *hwc_dev, int disp);
+bool is_wfd_display(omap_hwc_device_t *hwc_dev, int disp);
 
 bool is_external_display_mirroring(omap_hwc_device_t *hwc_dev, int disp);
 
