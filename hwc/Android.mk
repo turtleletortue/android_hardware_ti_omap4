@@ -48,7 +48,7 @@ LOCAL_STATIC_LIBRARIES := libpng
 
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_MODULE := hwcomposer.omap4
+LOCAL_MODULE := hwcomposer.$(TARGET_BOARD_PLATFORM)
 LOCAL_C_INCLUDES += external/libpng external/zlib
 
 ifeq ($(TARGET_TI_HWC_HDMI_DISABLED),true)
