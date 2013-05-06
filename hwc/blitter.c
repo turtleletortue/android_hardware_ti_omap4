@@ -78,15 +78,6 @@ int init_blitter(omap_hwc_device_t *hwc_dev)
 uint32_t get_blitter_policy(omap_hwc_device_t *hwc_dev, int disp)
 {
     blitter_config_t *blitter = &hwc_dev->blitter;
-
-    /*
-     * WORKAROUND: With HDMI as primary display, blitter is not working reliably
-     */
-    if (is_hdmi_display(hwc_dev, HWC_DISPLAY_PRIMARY)) {
-        ALOGI_IF(blitter->debug, "blitter: turning off for hdmi-primary display");
-        return BLT_POLICY_DISABLED;
-    }
-
     /*
      * Since we have only one set of framebuffers allocated in kernel, blitter is used only on
      * a single (primary) display.
