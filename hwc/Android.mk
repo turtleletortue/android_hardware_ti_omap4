@@ -7,6 +7,11 @@ LOCAL_ARM_MODE := arm
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/../vendor/lib/hw
 LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libutils libhardware libhardware_legacy libz
 
+ifdef BLANK_PRIMARY_DISPLAY
+    # This setting is to blank the primary display during bootup
+    LOCAL_CFLAGS += -DBLANK_PRIMARY_DISPLAY
+endif
+
 LOCAL_SRC_FILES := \
     blitter.c \
     color_fmt.c \

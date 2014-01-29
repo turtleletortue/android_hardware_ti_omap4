@@ -1048,11 +1048,18 @@ static int hwc_set_for_display(omap_hwc_device_t *hwc_dev, int disp, hwc_display
         sur = list->sur;
     }
 
+ /* Blanking primary display is necessary if the bootloader can't be trusted
+    * However, this causes issues with early camera use-case. The latest
+    * bootloader seems to have the same configuration what hwc expects
+    * so this config could be safely disabled
+    */
+#ifdef BLANK_PRIMARY_DISPLAY
     static bool first_set = true;
     if (first_set) {
         reset_primary_display(hwc_dev);
         first_set = false;
     }
+#endif
 
     if (debug)
         dump_set_info(hwc_dev, disp, list);
