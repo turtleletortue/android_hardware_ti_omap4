@@ -2166,7 +2166,8 @@ static int open_fb_hal(IMG_framebuffer_device_public_t **fb_dev)
         goto err_out;
     }
 
-    *fb_dev = psGrallocModule->psFrameBufferDevice;
+    fb_dev[0] = psGrallocModule->psFrameBufferDevice[0];
+    fb_dev[1] = psGrallocModule->psFrameBufferDevice[1];
 
     return 0;
 
