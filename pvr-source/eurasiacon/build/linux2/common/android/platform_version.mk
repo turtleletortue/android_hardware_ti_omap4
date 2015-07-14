@@ -45,7 +45,7 @@ PLATFORM_VERSION := $(shell \
 		cat $(TARGET_ROOT)/product/$(TARGET_PRODUCT)/system/build.prop | \
 			grep ^ro.build.version.release | cut -f2 -d'=' | cut -f1 -d'-'; \
 	else \
-		echo 4.0.3; \
+		echo 5.0; \
 	fi)
 
 define version-starts-with
@@ -71,8 +71,16 @@ else ifeq ($(call version-starts-with,IceCreamSandwichMR),1)
 PLATFORM_VERSION := 4.0.3
 else ifeq ($(call version-starts-with,IceCreamSandwich),1)
 PLATFORM_VERSION := 4.0
+else ifeq ($(call version-starts-with,JellyBeanMR1),1)
+PLATFORM_VERSION := 4.2
+else ifeq ($(call version-starts-with,JellyBeanMR),1)
+PLATFORM_VERSION := 4.3
 else ifeq ($(call version-starts-with,JellyBean),1)
 PLATFORM_VERSION := 4.1
+else ifeq ($(call version-starts-with,KeyLimePie),1)
+PLATFORM_VERSION := 4.4
+else ifeq ($(call version-starts-with,KitKat),1)
+PLATFORM_VERSION := 4.4
 else ifeq ($(shell echo $(PLATFORM_VERSION) | grep -qE "[A-Za-z]+"; echo $$?),0)
 PLATFORM_VERSION := 5.0
 endif
@@ -114,6 +122,18 @@ is_at_least_jellybean := \
 	$(shell ( test $(PLATFORM_VERSION_MAJ) -gt 4 || \
 				( test $(PLATFORM_VERSION_MAJ) -eq 4 && \
 				  test $(PLATFORM_VERSION_MIN) -ge 1 ) ) && echo 1 || echo 0)
+is_at_least_jellybean_mr1 := \
+	$(shell ( test $(PLATFORM_VERSION_MAJ) -gt 4 || \
+				( test $(PLATFORM_VERSION_MAJ) -eq 4 && \
+				  test $(PLATFORM_VERSION_MIN) -ge 2 ) ) && echo 1 || echo 0)
+is_at_least_jellybean_mr2 := \
+	$(shell ( test $(PLATFORM_VERSION_MAJ) -gt 4 || \
+				( test $(PLATFORM_VERSION_MAJ) -eq 4 && \
+				  test $(PLATFORM_VERSION_MIN) -ge 3 ) ) && echo 1 || echo 0)
+is_at_least_kitkat := \
+	$(shell ( test $(PLATFORM_VERSION_MAJ) -gt 4 || \
+				( test $(PLATFORM_VERSION_MAJ) -eq 4 && \
+				  test $(PLATFORM_VERSION_MIN) -ge 4 ) ) && echo 1 || echo 0)
 
 # FIXME: Assume "future versions" are >=5.0, but we don't really know
 is_future_version := \
@@ -123,6 +143,12 @@ is_future_version := \
 # against can avoid compatibility theming and affords better integration.
 #
 ifeq ($(is_future_version),1)
+API_LEVEL := 20
+else ifeq ($(is_at_least_kitkat),1)
+API_LEVEL := 19
+else ifeq ($(is_at_least_jellybean_mr2),1)
+API_LEVEL := 18
+else ifeq ($(is_at_least_jellybean_mr1),1)
 API_LEVEL := 17
 else ifeq ($(is_at_least_jellybean),1)
 API_LEVEL := 16

@@ -46,7 +46,11 @@ ifeq ($(BUILD),debug)
 COMMON_USER_FLAGS := -O0
 else
 OPTIM ?= -O2
+ifeq ($(USE_LTO),1)
+COMMON_USER_FLAGS := $(OPTIM) -flto
+else
 COMMON_USER_FLAGS := $(OPTIM)
+endif
 endif
 
 # FIXME: We should probably audit the driver for aliasing
