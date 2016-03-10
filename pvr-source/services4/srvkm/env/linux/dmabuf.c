@@ -42,7 +42,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "dmabuf.h"
 #include <linux/platform_device.h>
 #include <linux/dma-buf.h>
+
+#include <linux/version.h>
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,1,0))
 #include <linux/dma-direction.h>
+#else
+#include <linux/dma-mapping.h>
+#endif
+
 #include <linux/scatterlist.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
