@@ -38,12 +38,10 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ### ###########################################################################
 
-ifneq ($(EXTERNAL_3PDD_TARBALL),)
-TAR_OPT_STRIP_COMPONENTS ?= --strip-components
-prepare_tree: $(OUT)/target/kbuild/external
-$(OUT)/target/kbuild/external: eurasiacon/external/$(EXTERNAL_3PDD_TARBALL)
-	@echo "Extracting $<.."
-	@mkdir -p $@
-	@tar $(TAR_OPT_STRIP_COMPONENTS) 1 --touch -jxf $< -C $@
-	@touch $(OUT)/target/kbuild/external
-endif
+ccflags-y += \
+	-I$(TOP)/services4/3rdparty/dc_sunxi \
+	-I$(KERNELDIR)/drivers/video/
+
+dc_sunxi-y += \
+	services4/3rdparty/dc_sunxi/dc_sunxi_displayclass.o \
+	services4/3rdparty/dc_sunxi/dc_sunxi_linux.o

@@ -116,11 +116,7 @@ typedef struct _SYS_DATA_TAG_
 	RA_ARENA					*apsLocalDevMemArena[SYS_MAX_LOCAL_DEVMEM_ARENAS]; /*!< RA Arenas for local device memory heap management */
 
     IMG_CHAR                    *pszVersionString;          /*!< Human readable string showing relevent system version info */
-#if defined (SUPPORT_SID_INTERFACE)
-	PVRSRV_EVENTOBJECT_KM		*psGlobalEventObject;		/*!< OS Global Event Object */
-#else
 	PVRSRV_EVENTOBJECT			*psGlobalEventObject;		/*!< OS Global Event Object */
-#endif
 
 	PVRSRV_MISC_INFO_CPUCACHEOP_TYPE ePendingCacheOpType;	/*!< Deferred CPU cache op control */
 
@@ -164,16 +160,14 @@ PVRSRV_ERROR SysDevicePostPowerState(IMG_UINT32 ui32DeviceIndex,
 									 PVRSRV_DEV_POWER_STATE eNewPowerState,
 									 PVRSRV_DEV_POWER_STATE eCurrentPowerState);
 
-IMG_VOID SysSGXIdleEntered(IMG_VOID);
-IMG_VOID SysSGXCommandPending(IMG_BOOL bSGXIdle);
+#if defined(SYS_SUPPORTS_SGX_IDLE_CALLBACK)
+IMG_VOID SysSGXIdleTransition(IMG_BOOL bSGXIdle);
+#endif /* SYS_SUPPORTS_SGX_IDLE_CALLBACK */
 
 #if defined(SYS_CUSTOM_POWERLOCK_WRAP)
 PVRSRV_ERROR SysPowerLockWrap(IMG_BOOL bTryLock);
 IMG_VOID SysPowerLockUnwrap(IMG_VOID);
 #endif
-
-IMG_VOID SysLockSystemSuspend(IMG_VOID);
-IMG_VOID SysUnlockSystemSuspend(IMG_VOID);
 
 PVRSRV_ERROR SysOEMFunction (	IMG_UINT32	ui32ID,
 								IMG_VOID	*pvIn,

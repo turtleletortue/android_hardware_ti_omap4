@@ -38,9 +38,22 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ### ###########################################################################
 
+ifeq ($(TARGET_PRODUCT),crespo)
+$(warning *** Building crespo from omap4430_android is deprecated.)
+$(error Use s5pc110_android instead)
+endif
+
+ifneq ($(filter tuna maguro toro mysid yakju,$(TARGET_PRODUCT)),)
+ifeq ($(SUPPORT_ANDROID_COMPOSITION_BYPASS),1)
+$(error SUPPORT_ANDROID_COMPOSITION_BYPASS=1 is obsolete for this product)
+endif
+ifeq ($(SUPPORT_ANDROID_OMAP_NV12),1)
+SUPPORT_NV12_FROM_2_HWADDRS := 1
+endif
+# These default on in tuna_defconfig
 PVRSRV_USSE_EDM_STATUS_DEBUG ?= 1
 SGX_DISABLE_VISTEST_SUPPORT ?= 1
 PVRSRV_DUMP_MK_TRACE ?= 1
-PVRSRV_NEED_PVR_DPF ?= 1
-PVRSRV_NEED_PVR_TRACE ?= 1
-PVRSRV_NEED_PVR_ASSERT ?= 1
+# Go back to the old compiler for tuna kernel modules
+KERNEL_CROSS_COMPILE := arm-eabi-
+endif

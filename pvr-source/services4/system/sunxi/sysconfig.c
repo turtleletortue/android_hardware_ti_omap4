@@ -38,6 +38,7 @@ PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  
 */ /**************************************************************************/
 
 #include "sysconfig.h"
@@ -50,16 +51,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "ocpdefs.h"
 
-#if (SGX_CORE_REV == 105)
-#define OMAP5430_CORE_REV	0x10005
-#elif (SGX_CORE_REV == 116)
-#define OMAP5430_CORE_REV	0x10106
-#endif
 
 /* top level system data anchor point*/
 SYS_DATA* gpsSysData = (SYS_DATA*)IMG_NULL;
 SYS_DATA  gsSysData;
-
 static SYS_SPECIFIC_DATA gsSysSpecificData;
 SYS_SPECIFIC_DATA *gpsSysSpecificData;
 
@@ -68,8 +63,7 @@ static IMG_UINT32			gui32SGXDeviceID;
 static SGX_DEVICE_MAP		gsSGXDeviceMap;
 static PVRSRV_DEVICE_NODE	*gpsSGXDevNode;
 
-
-#if defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED)
+#if defined(NO_HARDWARE)
 static IMG_CPU_VIRTADDR gsSGXRegsCPUVAddr;
 #endif
 
@@ -84,32 +78,10 @@ IMG_UINT32 PVRSRV_BridgeDispatchKM(IMG_UINT32	Ioctl,
 								   IMG_UINT32	OutBufLen,
 								   IMG_UINT32	*pdwBytesTransferred);
 
-#if defined(SGX_OCP_REGS_ENABLED)
-
-static IMG_CPU_VIRTADDR gpvOCPRegsLinAddr;
-
-static PVRSRV_ERROR EnableSGXClocksWrap(SYS_DATA *psSysData)
-{
-	PVRSRV_ERROR eError = EnableSGXClocks(psSysData);
-
-#if !defined(SGX_OCP_NO_INT_BYPASS)
-	if(eError == PVRSRV_OK)
-	{
-		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_SYSCONFIG, 0x14);
-		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_DEBUG_CONFIG, EUR_CR_OCP_DEBUG_CONFIG_THALIA_INT_BYPASS_MASK);
-	}
-#endif
-	return eError;
-}
-
-#else /* defined(SGX_OCP_REGS_ENABLED) */
-
 static INLINE PVRSRV_ERROR EnableSGXClocksWrap(SYS_DATA *psSysData)
 {
 	return EnableSGXClocks(psSysData);
 }
-
-#endif /* defined(SGX_OCP_REGS_ENABLED) */
 
 static INLINE PVRSRV_ERROR EnableSystemClocksWrap(SYS_DATA *psSysData)
 {
@@ -169,7 +141,7 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 	 */
 
 	/* Registers */
-	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
+	gsSGXDeviceMap.ui32RegsSize = SYS_SUNXI_SGX_REGS_SIZE;
 
 	eError = OSBaseAllocContigMemory(gsSGXDeviceMap.ui32RegsSize,
 									 &gsSGXRegsCPUVAddr,
@@ -201,63 +173,24 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 
 #else /* defined(NO_HARDWARE) */
 #if defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO)
-	/* get the resource and IRQ through platform resource API */
-	dev_res = platform_get_resource(gpsPVRLDMDev, IORESOURCE_MEM, 0);
-	if (dev_res == NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: platform_get_resource failed", __FUNCTION__));
-		return PVRSRV_ERROR_INVALID_DEVICE;
-	}
-
-	dev_irq = platform_get_irq(gpsPVRLDMDev, 0);
-	if (dev_irq < 0)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "%s: platform_get_irq failed (%d)", __FUNCTION__, -dev_irq));
-		return PVRSRV_ERROR_INVALID_DEVICE;
-	}
-	
-	gsSGXDeviceMap.sRegsSysPBase.uiAddr = dev_res->start;
+	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_SUNXI_SGX_REGS_SYS_PHYS_BASE;
 	gsSGXDeviceMap.sRegsCpuPBase =
 		SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
 	PVR_TRACE(("SGX register base: 0x%lx", (unsigned long)gsSGXDeviceMap.sRegsCpuPBase.uiAddr));
 
-#if defined(SGX544) && defined(SGX_FEATURE_MP)
-	/* Workaround: Due to the change in the HWMOD, the driver is only detecting the
-	   size of the first memory section. For the moment, set the size with a macro
-	   until a better solution found						*/
-	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
-#else
-	gsSGXDeviceMap.ui32RegsSize = (unsigned int)(dev_res->end - dev_res->start);
-#endif
-
+	gsSGXDeviceMap.ui32RegsSize = SYS_SUNXI_SGX_REGS_SIZE;
 	PVR_TRACE(("SGX register size: %d",gsSGXDeviceMap.ui32RegsSize));
 
-	gsSGXDeviceMap.ui32IRQ = dev_irq;
+	gsSGXDeviceMap.ui32IRQ = SYS_SUNXI_SGX_IRQ;
 	PVR_TRACE(("SGX IRQ: %d", gsSGXDeviceMap.ui32IRQ));
 #else	/* defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO) */
-	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_OMAP4430_SGX_REGS_SYS_PHYS_BASE;
+	gsSGXDeviceMap.sRegsSysPBase.uiAddr = SYS_SUNXI_SGX_REGS_SYS_PHYS_BASE;
 	gsSGXDeviceMap.sRegsCpuPBase = SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
-	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
+	gsSGXDeviceMap.ui32RegsSize = SYS_SUNXI_SGX_REGS_SIZE;
 
-	gsSGXDeviceMap.ui32IRQ = SYS_OMAP4430_SGX_IRQ;
+	gsSGXDeviceMap.ui32IRQ = SYS_SUNXI_SGX_IRQ;
 
 #endif	/* defined(PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO) */
-#if defined(SGX_OCP_REGS_ENABLED)
-	gsSGXRegsCPUVAddr = OSMapPhysToLin(gsSGXDeviceMap.sRegsCpuPBase,
-	gsSGXDeviceMap.ui32RegsSize,
-											 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
-											 IMG_NULL);
-
-	if (gsSGXRegsCPUVAddr == IMG_NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR,"SysLocateDevices: Failed to map SGX registers"));
-		return PVRSRV_ERROR_BAD_MAPPING;
-	}
-
-	/* Indicate the registers are already mapped */
-	gsSGXDeviceMap.pvRegsCpuVBase = gsSGXRegsCPUVAddr;
-	gpvOCPRegsLinAddr = gsSGXRegsCPUVAddr;
-#endif
 #endif /* defined(NO_HARDWARE) */
 
 #if defined(PDUMP)
@@ -303,13 +236,9 @@ static IMG_CHAR *SysCreateVersionString(void)
 		return IMG_NULL;
 	}
 
-#if defined(SGX544) && defined(SGX_FEATURE_MP)
-	ui32SGXRevision = OMAP5430_CORE_REV;
-#else
-	ui32SGXRevision = OSReadHWReg((IMG_PVOID)((IMG_PBYTE)pvRegsLinAddr),
-			EUR_CR_CORE_REVISION);
-#endif
-
+	//ui32SGXRevision = OSReadHWReg((IMG_PVOID)((IMG_PBYTE)pvRegsLinAddr),
+	//							  EUR_CR_CORE_REVISION);
+	ui32SGXRevision = 0x10105;
 #else
 	ui32SGXRevision = 0;
 #endif
@@ -328,7 +257,7 @@ static IMG_CHAR *SysCreateVersionString(void)
 
 #if !defined(NO_HARDWARE)
 	OSUnMapPhysToLin(pvRegsLinAddr,
-					 SYS_OMAP4430_SGX_REGS_SIZE,
+					 SYS_SUNXI_SGX_REGS_SIZE,
 					 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
 					 IMG_NULL);
 #endif
@@ -357,12 +286,10 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 	IMG_UINT32			i;
 	PVRSRV_ERROR 		eError;
 	PVRSRV_DEVICE_NODE	*psDeviceNode;
-#if !defined(PVR_NO_OMAP_TIMER)
-	IMG_CPU_PHYADDR		TimerRegPhysBase;
-#endif
 #if !defined(SGX_DYNAMIC_TIMING_INFO)
 	SGX_TIMING_INFORMATION*	psTimingInfo;
 #endif
+	pr_debug("GPU: rc2, module  release--move power off gating to cpus, move reset to system 1223 = %d\n",SYS_SGX_CORE_CLOCK_SPEED);
 	gpsSysData = &gsSysData;
 	OSMemSet(gpsSysData, 0, sizeof(SYS_DATA));
 
@@ -436,7 +363,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LOCATEDEV);
 
-	eError = SysPMRuntimeRegister(gpsSysSpecificData);
+	eError = SysPMRuntimeRegister();
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to register with OSPM!"));
@@ -551,32 +478,9 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 	DisableSGXClocks(gpsSysData);
 #endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
 
-#if !defined(PVR_NO_OMAP_TIMER)
-#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
-	TimerRegPhysBase = gsSysSpecificData.sTimerRegPhysBase;
-#else
-	TimerRegPhysBase.uiAddr = SYS_OMAP4430_GP11TIMER_REGS_SYS_PHYS_BASE;
-#endif
-	gpsSysData->pvSOCTimerRegisterKM = IMG_NULL;
-	gpsSysData->hSOCTimerRegisterOSMemHandle = 0;
-	if (TimerRegPhysBase.uiAddr != 0)
-	{
-		OSReservePhys(TimerRegPhysBase,
-				  4,
-				  PVRSRV_HAP_MULTI_PROCESS|PVRSRV_HAP_UNCACHED,
-				  IMG_NULL,
-				  (IMG_VOID **)&gpsSysData->pvSOCTimerRegisterKM,
-				  &gpsSysData->hSOCTimerRegisterOSMemHandle);
-	}
-#endif /* !defined(PVR_NO_OMAP_TIMER) */
-
-
 	return PVRSRV_OK;
 }
 
-#if defined(CONFIG_OMAPLFB)
-int OMAPLFBRegisterPVRDriver(void * pfnFuncTable);
-#endif
 
 /*!
 ******************************************************************************
@@ -639,14 +543,6 @@ PVRSRV_ERROR SysFinalise(IMG_VOID)
 	/* SGX defaults to D3 power state */
 	DisableSGXClocks(gpsSysData);
 #endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
-
-#if defined(CONFIG_OMAPLFB)
-	if (OMAPLFBRegisterPVRDriver((void *)&PVRGetDisplayClassJTable) != 0)
-	{
-		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to register PVR driver with omaplfb"));
-		return PVRSRV_ERROR_INIT_FAILURE;
-	}
-#endif
 
 	gpsSysSpecificData->bSGXInitComplete = IMG_TRUE;
 
@@ -736,7 +632,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME))
 	{
-		eError = SysPMRuntimeUnregister(gpsSysSpecificData);
+		eError = SysPMRuntimeUnregister();
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: Failed to unregister with OSPM!"));
@@ -765,26 +661,15 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 
 	SysDeinitialiseCommon(gpsSysData);
 
-#if defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED)
+#if defined(NO_HARDWARE)
 	if(gsSGXRegsCPUVAddr != IMG_NULL)
 	{
-#if defined(NO_HARDWARE)
 		/* Free hardware resources. */
-		OSBaseFreeContigMemory(SYS_OMAP4430_SGX_REGS_SIZE, gsSGXRegsCPUVAddr, gsSGXDeviceMap.sRegsCpuPBase);
-#else
-#if defined(SGX_OCP_REGS_ENABLED)
-		OSUnMapPhysToLin(gsSGXRegsCPUVAddr,
-		gsSGXDeviceMap.ui32RegsSize,
-												 PVRSRV_HAP_UNCACHED|PVRSRV_HAP_KERNEL_ONLY,
-												 IMG_NULL);
-
-		gpvOCPRegsLinAddr = IMG_NULL;
-#endif
-#endif	/* defined(NO_HARDWARE) */
+		OSBaseFreeContigMemory(SYS_SUNXI_SGX_REGS_SIZE, gsSGXRegsCPUVAddr, gsSGXDeviceMap.sRegsCpuPBase);
 		gsSGXRegsCPUVAddr = IMG_NULL;
 		gsSGXDeviceMap.pvRegsCpuVBase = gsSGXRegsCPUVAddr;
 	}
-#endif	/* defined(NO_HARDWARE) || defined(SGX_OCP_REGS_ENABLED) */
+#endif	/* defined(NO_HARDWARE) */
 
 	
 	gpsSysSpecificData->ui32SysSpecificData = 0;
@@ -853,7 +738,7 @@ IMG_DEV_PHYADDR SysCpuPAddrToDevPAddr(PVRSRV_DEVICE_TYPE	eDeviceType,
 	PVR_UNREFERENCED_PARAMETER(eDeviceType);
 
 	/* Note: for UMA system we assume DevP == CpuP */
-	DevPAddr.uiAddr = CpuPAddr.uiAddr;
+	DevPAddr.uiAddr = CpuPAddr.uiAddr - 0x40000000;
 	
 	return DevPAddr;
 }
@@ -876,6 +761,7 @@ IMG_CPU_PHYADDR SysSysPAddrToCpuPAddr (IMG_SYS_PHYADDR sys_paddr)
 	/* This would only be an inequality if the CPU's MMU did not point to
 	   sys address 0, ie. multi CPU system */
 	cpu_paddr.uiAddr = sys_paddr.uiAddr;
+	
 	return cpu_paddr;
 }
 
@@ -897,6 +783,7 @@ IMG_SYS_PHYADDR SysCpuPAddrToSysPAddr (IMG_CPU_PHYADDR cpu_paddr)
 	/* This would only be an inequality if the CPU's MMU did not point to
 	   sys address 0, ie. multi CPU system */
 	sys_paddr.uiAddr = cpu_paddr.uiAddr;
+	
 	return sys_paddr;
 }
 
@@ -919,12 +806,12 @@ IMG_SYS_PHYADDR SysCpuPAddrToSysPAddr (IMG_CPU_PHYADDR cpu_paddr)
 IMG_DEV_PHYADDR SysSysPAddrToDevPAddr(PVRSRV_DEVICE_TYPE eDeviceType, IMG_SYS_PHYADDR SysPAddr)
 {
 	IMG_DEV_PHYADDR DevPAddr;
-
+	
 	PVR_UNREFERENCED_PARAMETER(eDeviceType);
-
+	
 	/* Note: for UMA system we assume DevP == CpuP */
-	DevPAddr.uiAddr = SysPAddr.uiAddr;
-
+	DevPAddr.uiAddr = SysPAddr.uiAddr - 0x40000000;
+	
 	return DevPAddr;
 }
 
@@ -951,8 +838,8 @@ IMG_SYS_PHYADDR SysDevPAddrToSysPAddr(PVRSRV_DEVICE_TYPE eDeviceType, IMG_DEV_PH
 	PVR_UNREFERENCED_PARAMETER(eDeviceType);
 
 	/* Note: for UMA system we assume DevP == SysP */
-	SysPAddr.uiAddr = DevPAddr.uiAddr;
-
+	SysPAddr.uiAddr = DevPAddr.uiAddr + 0x40000000;
+	
 	return SysPAddr;
 }
 
@@ -1031,59 +918,11 @@ IMG_VOID SysClearInterrupts(SYS_DATA* psSysData, IMG_UINT32 ui32ClearBits)
 	PVR_UNREFERENCED_PARAMETER(ui32ClearBits);
 	PVR_UNREFERENCED_PARAMETER(psSysData);
 #if !defined(NO_HARDWARE)
-#if defined(SGX_OCP_NO_INT_BYPASS)
-	OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQSTATUS_2, 0x1);
-#endif
 	/* Flush posted writes */
 	OSReadHWReg(((PVRSRV_SGXDEV_INFO *)gpsSGXDevNode->pvDevice)->pvRegsBaseKM, EUR_CR_EVENT_HOST_CLEAR);
 #endif	/* defined(NO_HARDWARE) */
 }
 
-#if defined(SGX_OCP_NO_INT_BYPASS)
-/*!
-******************************************************************************
- @Function        SysEnableSGXInterrupts
-
- @Description     Enables SGX interrupts
-
- @Input           psSysData
-
- @Return        IMG_VOID
-
-******************************************************************************/
-IMG_VOID SysEnableSGXInterrupts(SYS_DATA *psSysData)
-{
-	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *)psSysData->pvSysSpecificData;
-	if (SYS_SPECIFIC_DATA_TEST(psSysSpecData, SYS_SPECIFIC_DATA_ENABLE_LISR) && !SYS_SPECIFIC_DATA_TEST(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED))
-	{
-		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQSTATUS_2, 0x1);
-		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQENABLE_SET_2, 0x1);
-		SYS_SPECIFIC_DATA_SET(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED);
-	}
-}
-
-/*!
-******************************************************************************
- @Function        SysDisableSGXInterrupts
-
- @Description     Disables SGX interrupts
-
- @Input           psSysData
-
- @Return        IMG_VOID
-
-******************************************************************************/
-IMG_VOID SysDisableSGXInterrupts(SYS_DATA *psSysData)
-{
-	SYS_SPECIFIC_DATA *psSysSpecData = (SYS_SPECIFIC_DATA *)psSysData->pvSysSpecificData;
-
-	if (SYS_SPECIFIC_DATA_TEST(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED))
-	{
-		OSWriteHWReg(gpvOCPRegsLinAddr, EUR_CR_OCP_IRQENABLE_CLR_2, 0x1);
-		SYS_SPECIFIC_DATA_CLEAR(psSysSpecData, SYS_SPECIFIC_DATA_IRQ_ENABLED);
-	}
-}
-#endif	/* defined(SGX_OCP_NO_INT_BYPASS) */
 
 /*!
 ******************************************************************************
@@ -1156,7 +995,6 @@ PVRSRV_ERROR SysSystemPrePowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
 PVRSRV_ERROR SysSystemPostPowerState(PVRSRV_SYS_POWER_STATE eNewPowerState)
 {
 	PVRSRV_ERROR eError = PVRSRV_OK;
-
 	if (eNewPowerState == PVRSRV_SYS_POWER_STATE_D0)
 	{
 		PVR_TRACE(("SysSystemPostPowerState: Entering state D0"));
@@ -1221,7 +1059,6 @@ PVRSRV_ERROR SysDevicePrePowerState(IMG_UINT32				ui32DeviceIndex,
 									PVRSRV_DEV_POWER_STATE	eCurrentPowerState)
 {
 	PVR_UNREFERENCED_PARAMETER(eCurrentPowerState);
-
 	if (ui32DeviceIndex != gui32SGXDeviceID)
 	{
 		return PVRSRV_OK;
@@ -1262,7 +1099,6 @@ PVRSRV_ERROR SysDevicePostPowerState(IMG_UINT32				ui32DeviceIndex,
 	PVRSRV_ERROR eError = PVRSRV_OK;
 
 	PVR_UNREFERENCED_PARAMETER(eNewPowerState);
-
 	if (ui32DeviceIndex != gui32SGXDeviceID)
 	{
 		return eError;
@@ -1281,19 +1117,14 @@ PVRSRV_ERROR SysDevicePostPowerState(IMG_UINT32				ui32DeviceIndex,
 	return eError;
 }
 
-IMG_VOID SysLockSystemSuspend(IMG_VOID)
+#if defined(SYS_SUPPORTS_SGX_IDLE_CALLBACK)
+
+IMG_VOID SysSGXIdleTransition(IMG_BOOL bSGXIdle)
 {
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_lock(&gpsSysSpecificData->wake_lock);
-#endif
+	PVR_DPF((PVR_DBG_MESSAGE, "SysSGXIdleTransition switch to %u", bSGXIdle));
 }
 
-IMG_VOID SysUnlockSystemSuspend(IMG_VOID)
-{
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_unlock(&gpsSysSpecificData->wake_lock);
-#endif
-}
+#endif /* defined(SYS_SUPPORTS_SGX_IDLE_CALLBACK) */
 
 /*****************************************************************************
  @Function        SysOEMFunction

@@ -38,6 +38,7 @@ PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  
 */ /**************************************************************************/
 
 #if !defined(__SYSLOCAL_H__)
@@ -69,49 +70,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if !defined(LDM_PLATFORM)
 #error "LDM_PLATFORM must be set"
 #endif
-#define	PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO
+#if defined	PVR_LINUX_DYNAMIC_SGX_RESOURCE_INFO
 #include <linux/platform_device.h>
 #endif
-
-#if ((defined(DEBUG) || defined(TIMING)) && \
-    (LINUX_VERSION_CODE == KERNEL_VERSION(2,6,34))) && \
-    !defined(PVR_NO_OMAP_TIMER)
-/*
- * We need to explicitly enable the GPTIMER11 clocks, or we'll get an
- * abort when we try to access the timer registers.
- */
-#define	PVR_OMAP4_TIMING_PRCM
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
-#include <plat/gpu.h>
-#endif
-#if !defined(PVR_NO_OMAP_TIMER)
-#define	PVR_OMAP_USE_DM_TIMER_API
-#include <plat/dmtimer.h>
-#endif
-#endif
-
-#if defined(CONFIG_HAS_WAKELOCK)
-#include <linux/wakelock.h>
-#endif
-
-#if !defined(PVR_NO_OMAP_TIMER)
-#define PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA
-#endif
 #endif /* defined(__linux__) */
-
-#if !defined(NO_HARDWARE) && \
-     defined(SYS_USING_INTERRUPTS)
-#define SGX_OCP_REGS_ENABLED
-#endif
-
-#if defined(__linux__)
-#if defined(SGX_OCP_REGS_ENABLED)
-#define SGX_OCP_NO_INT_BYPASS
-#endif
-#endif
 
 #if defined (__cplusplus)
 extern "C" {
@@ -163,9 +127,6 @@ typedef struct _SYS_SPECIFIC_DATA_TAG_
 	IMG_UINT32	ui32SysSpecificData;
 	PVRSRV_DEVICE_NODE *psSGXDevNode;
 	IMG_BOOL	bSGXInitComplete;
-#if defined(PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA)
-	IMG_CPU_PHYADDR	sTimerRegPhysBase;
-#endif
 #if !defined(__linux__)
 	IMG_BOOL	bSGXClocksEnabled;
 #endif
@@ -187,24 +148,16 @@ typedef struct _SYS_SPECIFIC_DATA_TAG_
 	struct clk	*psGPT11_FCK;
 	struct clk	*psGPT11_ICK;
 #endif
-#if defined(PVR_OMAP_USE_DM_TIMER_API)
-	struct omap_dm_timer *psGPTimer;
-#endif
-#if defined(CONFIG_HAS_WAKELOCK)
-	struct wake_lock wake_lock;
-#endif /* CONFIG_HAS_WAKELOCK */
+	IMG_UINT32 ui32SGXFreqListSize;
+	IMG_UINT32 *pui32SGXFreqList;
+	IMG_UINT32 ui32SGXFreqListIndex;
 #endif	/* defined(__linux__) */
 } SYS_SPECIFIC_DATA;
 
 extern SYS_SPECIFIC_DATA *gpsSysSpecificData;
 
-#if defined(SGX_OCP_REGS_ENABLED) && defined(SGX_OCP_NO_INT_BYPASS)
-IMG_VOID SysEnableSGXInterrupts(SYS_DATA* psSysData);
-IMG_VOID SysDisableSGXInterrupts(SYS_DATA* psSysData);
-#else
 #define	SysEnableSGXInterrupts(psSysData)
 #define SysDisableSGXInterrupts(psSysData)
-#endif
 
 #if defined(SYS_CUSTOM_POWERLOCK_WRAP)
 IMG_BOOL WrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData);
@@ -213,19 +166,11 @@ IMG_VOID UnwrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData);
 
 #if defined(__linux__)
 
-PVRSRV_ERROR SysPMRuntimeRegister(SYS_SPECIFIC_DATA *psSysSpecificData);
-PVRSRV_ERROR SysPMRuntimeUnregister(SYS_SPECIFIC_DATA *psSysSpecificData);
+PVRSRV_ERROR SysPMRuntimeRegister(void);
+PVRSRV_ERROR SysPMRuntimeUnregister(void);
 
 PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData);
 PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
-int pvr_access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
-#else
-static inline int pvr_access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)
-{
-	return -1;
-}
-#endif
 
 #else /* defined(__linux__) */
 
@@ -260,8 +205,6 @@ static INLINE PVRSRV_ERROR SysDvfsDeinitialize(void)
 {
 	return PVRSRV_OK;
 }
-
-#define pvr_access_process_vm(tsk, addr, buf, len, write) -1
 
 #endif /* defined(__linux__) */
 

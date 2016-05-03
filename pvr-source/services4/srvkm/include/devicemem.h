@@ -1,7 +1,6 @@
 /*************************************************************************/ /*!
-@Title          Shared (User/kernel) and System dependent utilities
+@Title          KM internal device memory functions
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
-@Description    Provides system-specific functions
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -40,20 +39,14 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
-/* Pull in the correct system dependent sysutils source */
+#include "img_defs.h"
+#include "img_types.h"
+#include "servicesext.h"
 
-#if defined(__linux__)
-#include "sysutils_linux.c"
-#if defined(SYS_OMAP4_HAS_DVFS_FRAMEWORK)
-#include "sgxfreq.c"
-#include "sgxfreq_onoff.c"
-#include "sgxfreq_activeidle.c"
-#include "sgxfreq_on3demand.c"
-#include "sgxfreq_userspace.c"
-#if defined(CONFIG_THERMAL_FRAMEWORK)
-#include "sgxfreq_cool.c"
-#endif
-#endif
-#endif
+#ifndef __DEVICEMEM_H__
+#define __DEVICEMEM_H__
 
+PVRSRV_ERROR IMG_CALLCONV PVRSRVInitDeviceMem(IMG_VOID);
+IMG_VOID IMG_CALLCONV PVRSRVDeInitDeviceMem(IMG_VOID);
 
+#endif /* __DEVICEMEM_H__ */

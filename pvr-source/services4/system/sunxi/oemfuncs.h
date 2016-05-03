@@ -1,7 +1,6 @@
 /*************************************************************************/ /*!
-@Title          System Description Header
+@Title          SGX kernel/client driver interface structures and prototypes
 @Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
-@Description    This header provides system-specific declarations and macros
 @License        Dual MIT/GPLv2
 
 The contents of this file are subject to the MIT license as set out below.
@@ -38,27 +37,45 @@ PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+  
 */ /**************************************************************************/
 
-#if !defined(__SYSINFO_H__)
-#define __SYSINFO_H__
+#if !defined(__OEMFUNCS_H__)
+#define __OEMFUNCS_H__
 
-/*!< System specific poll/timeout details */
-#if defined(PVR_LINUX_USING_WORKQUEUES)
-/*
- * The workqueue based 3rd party display driver may be blocked for up
- * to 500ms waiting for a vsync when the screen goes blank, so we
- * need to wait longer for the hardware if a flush of the swap chain is
- * required.
- */
-#define MAX_HW_TIME_US				(1000000)
-#define WAIT_TRY_COUNT				(20000)
-#else
-#define MAX_HW_TIME_US				(500000)
-#define WAIT_TRY_COUNT				(10000)
+#if defined (__cplusplus)
+extern "C" {
 #endif
 
+/* function in/out data structures: */
+typedef IMG_UINT32   (*PFN_SRV_BRIDGEDISPATCH)( IMG_UINT32  Ioctl,
+												IMG_BYTE   *pInBuf,
+												IMG_UINT32  InBufLen, 
+											    IMG_BYTE   *pOutBuf,
+												IMG_UINT32  OutBufLen,
+												IMG_UINT32 *pdwBytesTransferred);
+/*
+	Function table for kernel 3rd party driver to kernel services
+*/
+typedef struct PVRSRV_DC_OEM_JTABLE_TAG
+{
+	PFN_SRV_BRIDGEDISPATCH			pfnOEMBridgeDispatch;
+	IMG_PVOID						pvDummy1;
+	IMG_PVOID						pvDummy2;
+	IMG_PVOID						pvDummy3;
 
-#define SYS_DEVICE_COUNT 15 /* SGX, DISPLAYCLASS (external), BUFFERCLASS (external) */
+} PVRSRV_DC_OEM_JTABLE;
 
-#endif	/* __SYSINFO_H__ */
+#define OEM_GET_EXT_FUNCS			(1<<1)
+
+#if defined(__cplusplus)
+}
+#endif
+
+#endif	/* __OEMFUNCS_H__ */
+
+/*****************************************************************************
+ End of file (oemfuncs.h)
+*****************************************************************************/
+
+

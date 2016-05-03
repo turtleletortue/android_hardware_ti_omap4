@@ -64,7 +64,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	#if defined(__arm__) || defined(__sh__)
 		#define	PGPROT_WC(pv)	pgprot_writecombine(pv)
 	#else
-		#if defined(__i386__) || defined(__mips__)
+		#if defined(__i386__) || defined(__x86_64) || defined(__mips__)
 			#define	PGPROT_WC(pv)	pgprot_noncached(pv)
 		#else
 			#define PGPROT_WC(pv)	pgprot_noncached(pv)
@@ -78,12 +78,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #if defined(__i386__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26))
 	#define	IOREMAP(pa, bytes)	ioremap_cache(pa, bytes)
 #else	
-	#if defined(__arm__)
-		#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
-			#define	IOREMAP(pa, bytes)	ioremap_cache(pa, bytes)
-		#else
-			#define IOREMAP(pa, bytes)	ioremap_cached(pa, bytes)
-		#endif
+	#if defined(__arm__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
+		#define	IOREMAP(pa, bytes)	ioremap_cached(pa, bytes)
+	#else
+		#define IOREMAP(pa, bytes)	ioremap(pa, bytes)
 	#endif
 #endif
 

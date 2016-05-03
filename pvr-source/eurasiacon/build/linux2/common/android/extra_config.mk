@@ -40,11 +40,10 @@
 
 
 $(eval $(call BothConfigC,ANDROID,))
+
+
+
+
+
 $(eval $(call TunableBothConfigMake,PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC,))
 $(eval $(call TunableBothConfigC,PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC,))
-
-
-
-
-
-
