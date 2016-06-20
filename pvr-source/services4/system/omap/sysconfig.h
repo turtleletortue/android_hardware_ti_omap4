@@ -89,6 +89,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define DEVICE_DISP_INTERRUPT		(1<<2)
 
 #if defined(__linux__)
+#if defined(PVR_LDM_DEVICE_TREE)
+#define	SYS_SGX_DEV_NAME	"ti,dra7-sgx544"
+#else
 /*
  * Recent OMAP4 kernels register SGX as platform device "omap_gpu".
  * This device must be used with the Linux power management calls
@@ -99,6 +102,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #else
 #define	SYS_SGX_DEV_NAME	"omap_gpu"
 #endif	/* defined(PVR_LDM_PLATFORM_PRE_REGISTERED_DEV) */
+#endif	/* defined(PVR_LDM_DEVICE_TREE) */
 #endif	/* defined(__linux__) */
 
 /*****************************************************************************
