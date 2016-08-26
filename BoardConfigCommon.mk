@@ -26,6 +26,7 @@ TARGET_ARCH_VARIANT := armv7-a-neon
 
 # Graphics
 USE_OPENGL_RENDERER := true
+TARGET_FORCE_SCREENSHOT_CPU_PATH ?= true
 
 # Global include changes
 TARGET_SPECIFIC_HEADER_PATH += $(OMAP4_NEXT_FOLDER)/include
