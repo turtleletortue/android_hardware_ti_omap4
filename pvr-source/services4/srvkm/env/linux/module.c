@@ -265,17 +265,21 @@ MODULE_DEVICE_TABLE(pci, powervr_id_table);
 #endif
 
 #if defined(PVR_USE_PRE_REGISTERED_PLATFORM_DEV)
+#pragma GCC diagnostic warning "-Wmissing-field-initializers"
 static struct platform_device_id powervr_id_table[] __devinitdata = {
 	{SYS_SGX_DEV_NAME, 0},
 	{}
 };
+#pragma GCC diagnostic pop
 #endif
 
 #ifdef CONFIG_OF
+#pragma GCC diagnostic warning "-Wmissing-field-initializers"
 static const struct of_device_id omap_gpu_id_table[] = {
         { .compatible = "ti,omap4-gpu" },
         {}
 };
+#pragma GCC diagnostic pop
 MODULE_DEVICE_TABLE(of, omap_gpu_id_table);
 #endif
 
