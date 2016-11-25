@@ -43,9 +43,6 @@ TARGET_SPECIFIC_HEADER_PATH += $(OMAP4_NEXT_FOLDER)/domx/omx_core/inc
 BOARD_USE_TI_CUSTOM_DOMX := true
 DOMX_PATH := $(OMAP4_NEXT_FOLDER)/domx
 
-# Native FB format for HWC 1.1
-BOARD_USE_BGRA_8888 ?= true
-
 BOARD_CANT_REALLOCATE_OMX_BUFFERS ?= true
 
 # Screencast
