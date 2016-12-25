@@ -77,8 +77,6 @@ DISPLAY_CONTROLLER := omaplfb
 PVR_SYSTEM := omap4
 HAL_VARIANT := $(PVR_SYSTEM)
 
-KERNEL_CROSS_COMPILE ?= arm-none-linux-gnueabi-
-
 # We have more memory on OMAP platforms, so we can spare to make the
 # pool larger, and have higher resolutions which benefit from it.
 #
