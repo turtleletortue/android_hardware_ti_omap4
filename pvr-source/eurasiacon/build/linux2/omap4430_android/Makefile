@@ -124,7 +124,10 @@ DISPLAY_CONTROLLER := pvrlfb
 DISPLAY_CONTROLLER_COMPONENT := linux_framebuffer
 OMAP_NON_FLIP_DISPLAY := 1
 else
-DISPLAY_CONTROLLER_COMPONENT := dc_omapfb3_linux
+# The code for the omaplfb component is now hosted on a
+# different repository. No need to compile this now
+#
+# DISPLAY_CONTROLLER_COMPONENT := dc_omapfb3_linux
 endif
 
 ifeq ($(SUPPORT_DRI_DRM),1)
