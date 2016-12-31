@@ -48,33 +48,25 @@ else
 endif
 export USE_TI_LIBION
 
-ifeq ($(TARGET_SGX),544sc)
- SGXCORE := 544
- SGX_CORE_REV := 112
-else ifeq ($(TARGET_SGX),540)
- SGXCORE := 540
- SGX_CORE_REV := 120
-else ifeq ($(TARGET_SGX),544)
- SGXCORE := 544
- SGX_CORE_REV := 105
- HAL_VARIANT := omap5
- SGX_FEATURE_MP := 1
- SGX_FEATURE_SYSTEM_CACHE := 1
- SGX_FEATURE_MP_CORE_COUNT := 2
-else ifeq ($(TARGET_SGX),544es2)
- SGXCORE := 544
- SGX_CORE_REV := 116
- HAL_VARIANT := omap5
- SGX_FEATURE_MP := 1
- SGX_FEATURE_SYSTEM_CACHE := 1
- SGX_FEATURE_MP_CORE_COUNT := 2
-else
- #default config
- SGXCORE := 540
- SGX_CORE_REV := 120
+# This isn't ideal, as there might be other 4470 products. The
+# blaze/blaze_tablet products support the 4470 SOM so handle those.
+#
+ifeq ($(TARGET_PRODUCT),blaze.4470)
+override TARGET_PRODUCT := blaze
+SGXCORE := 544
+SGX_CORE_REV := 112
 endif
-export SGXCORE
-export SGX_CORE_REV
+
+ifeq ($(TARGET_PRODUCT),blaze_tablet.4470)
+override TARGET_PRODUCT := blaze_tablet
+SGXCORE := 544
+SGX_CORE_REV := 112
+endif
+
+TARGET_PRODUCT ?= blaze
+
+SGXCORE ?= 540
+SGX_CORE_REV ?= 120
 
 SGX_DYNAMIC_TIMING_INFO := 1
 
@@ -84,6 +76,8 @@ DISPLAY_CONTROLLER := omaplfb
 
 PVR_SYSTEM := omap4
 HAL_VARIANT := $(PVR_SYSTEM)
+
+KERNEL_CROSS_COMPILE ?= arm-none-linux-gnueabi-
 
 # We have more memory on OMAP platforms, so we can spare to make the
 # pool larger, and have higher resolutions which benefit from it.
@@ -129,12 +123,8 @@ SUPPORT_ACTIVE_POWER_MANAGEMENT := 0
 DISPLAY_CONTROLLER := pvrlfb
 DISPLAY_CONTROLLER_COMPONENT := linux_framebuffer
 OMAP_NON_FLIP_DISPLAY := 1
-
-# The code for the omaplfb component is now hosted on a
-# different repository. No need to compile this now
-#
-# DISPLAY_CONTROLLER_COMPONENT := dc_omapfb3_linux
-
+else
+DISPLAY_CONTROLLER_COMPONENT := dc_omapfb3_linux
 endif
 
 ifeq ($(SUPPORT_DRI_DRM),1)

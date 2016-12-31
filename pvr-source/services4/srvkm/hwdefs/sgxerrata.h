@@ -394,12 +394,25 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 		#define FIX_HW_BRN_36513 /* workaround in uKernel and Services */
 	#else
 	#if SGX_CORE_REV == 116
+		#if defined(SGX_FEATURE_MP)
+			#if SGX_FEATURE_MP_CORE_COUNT == 1	
+				#define FIX_HW_BRN_33809/* workaround in kernel (enable burst combiner) */
+			#endif
+		#endif
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
 			#define FIX_HW_BRN_33657/* workaround in ukernel */
 		#endif
-		//FIXME: This causes DMM/EMIF lockup
-		//#define FIX_HW_BRN_33809/* workaround in kernel (enable burst combiner) */
 		#define FIX_HW_BRN_36513 /* workaround in uKernel and Services */
+	#else
+	#if SGX_CORE_REV == 117
+		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
+			#define FIX_HW_BRN_33657/* workaround in ukernel */
+		#endif
+		#define FIX_HW_BRN_33809/* workaround in kernel (enable burst combiner) */
+		#define FIX_HW_BRN_36513 /* workaround in uKernel and Services */
+	#else
+	#if SGX_CORE_REV == 118
+		#define FIX_HW_BRN_33920/* workaround in ukernel */
 	#else
 	#if SGX_CORE_REV == SGX_CORE_REV_HEAD
 		#if defined(SUPPORT_SGX_LOW_LATENCY_SCHEDULING) && defined(SGX_FEATURE_MP)
@@ -407,6 +420,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 		#endif
 	#else
 		#error "sgxerrata.h: SGX544 Core Revision unspecified"
+	#endif
+	#endif
 	#endif
 	#endif
 	#endif

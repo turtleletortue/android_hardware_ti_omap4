@@ -133,11 +133,6 @@ typedef struct _PVRSRV_KERNEL_MEM_INFO_
 
 	PVRSRV_MEMTYPE				memType;
 
-	IMG_VOID *bvmap_handle;
-
-    /* Device Virtual Address Offsets for the YUV MM planes */
-	IMG_UINT32 planeOffsets[PVRSRV_MAX_NUMBER_OF_MM_BUFFER_PLANES];
-
     /*
       To activate the "share mem workaround", add PVRSRV_MEM_XPROC to
       the flags for the allocation.  This will cause the "map" API to

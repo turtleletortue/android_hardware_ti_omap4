@@ -426,18 +426,6 @@ PVRMMapOSMemHandleToMMapData(PVRSRV_PER_PROCESS_DATA *psPerProc,
 
     psLinuxMemArea = (LinuxMemArea *)hOSMemHandle;
 
-    if (psLinuxMemArea && (psLinuxMemArea->eAreaType == LINUX_MEM_AREA_ION))
-    {
-        *pui32RealByteSize = psLinuxMemArea->ui32ByteSize;
-        *pui32ByteOffset = psLinuxMemArea->uData.sIONTilerAlloc.planeOffsets[0];
-        /* The offsets for the subsequent planes must be co-aligned for user
-         * space mapping and sgx 544 and later. I.e.
-         * psLinuxMemArea->uData.sIONTilerAlloc.planeOffsets[n];
-         */
-    }
-    else
-    {
-
 	/* Sparse mappings have to ask the BM for the virtual size */
 	if (psLinuxMemArea->hBMHandle)
 	{
@@ -450,7 +438,6 @@ PVRMMapOSMemHandleToMMapData(PVRSRV_PER_PROCESS_DATA *psPerProc,
 										pui32RealByteSize,
 										pui32ByteOffset);
 	}
-    }
 
     /* Check whether this memory area has already been mapped */
     list_for_each_entry(psOffsetStruct, &psLinuxMemArea->sMMapOffsetStructList, sAreaItem)
@@ -1107,18 +1094,7 @@ PVRMMap(struct file* pFile, struct vm_area_struct* ps_vma)
             iRetVal = -EINVAL;
 	    goto unlock_and_return;
     }
-
-#if defined(SGX544) && defined(SGX_FEATURE_MP)
-    /* In OMAP5, the A15 no longer masks an issue with the interconnect.
-       writecombined access to the Tiler 2D memory will encounter errors due to
-       interconect bus accesses. This will result in a SIGBUS error with a
-       "non-line fetch abort". The workaround is to use a shared device
-       access. */
-    if (psOffsetStruct->psLinuxMemArea->eAreaType == LINUX_MEM_AREA_ION)
-        ps_vma->vm_page_prot = __pgprot_modify(ps_vma->vm_page_prot,
-                                L_PTE_MT_MASK, L_PTE_MT_DEV_SHARED);
-#endif
-
+    
     /* Install open and close handlers for ref-counting */
     ps_vma->vm_ops = &MMapIOOps;
     
@@ -1131,10 +1107,6 @@ PVRMMap(struct file* pFile, struct vm_area_struct* ps_vma)
     PVR_ASSERT(psOffsetStruct->ui32UserVAddr == 0);
 
     psOffsetStruct->ui32UserVAddr = ps_vma->vm_start;
-
-    /* Invalidate for the ION memory is performed during the mapping */
-    if(psOffsetStruct->psLinuxMemArea->eAreaType == LINUX_MEM_AREA_ION)
-        psOffsetStruct->psLinuxMemArea->bNeedsCacheInvalidate = IMG_FALSE;
 
     /* Compute the flush region (if necessary) inside the mmap mutex */
     if(psOffsetStruct->psLinuxMemArea->bNeedsCacheInvalidate)

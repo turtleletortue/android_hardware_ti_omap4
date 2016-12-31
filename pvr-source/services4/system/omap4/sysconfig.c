@@ -50,12 +50,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "ocpdefs.h"
 
-#if (SGX_CORE_REV == 105)
-#define OMAP5430_CORE_REV	0x10005
-#elif (SGX_CORE_REV == 116)
-#define OMAP5430_CORE_REV	0x10106
-#endif
-
 /* top level system data anchor point*/
 SYS_DATA* gpsSysData = (SYS_DATA*)IMG_NULL;
 SYS_DATA  gsSysData;
@@ -221,15 +215,7 @@ static PVRSRV_ERROR SysLocateDevices(SYS_DATA *psSysData)
 		SysSysPAddrToCpuPAddr(gsSGXDeviceMap.sRegsSysPBase);
 	PVR_TRACE(("SGX register base: 0x%lx", (unsigned long)gsSGXDeviceMap.sRegsCpuPBase.uiAddr));
 
-#if defined(SGX544) && defined(SGX_FEATURE_MP)
-	/* Workaround: Due to the change in the HWMOD, the driver is only detecting the
-	   size of the first memory section. For the moment, set the size with a macro
-	   until a better solution found						*/
-	gsSGXDeviceMap.ui32RegsSize = SYS_OMAP4430_SGX_REGS_SIZE;
-#else
 	gsSGXDeviceMap.ui32RegsSize = (unsigned int)(dev_res->end - dev_res->start);
-#endif
-
 	PVR_TRACE(("SGX register size: %d",gsSGXDeviceMap.ui32RegsSize));
 
 	gsSGXDeviceMap.ui32IRQ = dev_irq;
@@ -303,13 +289,8 @@ static IMG_CHAR *SysCreateVersionString(void)
 		return IMG_NULL;
 	}
 
-#if defined(SGX544) && defined(SGX_FEATURE_MP)
-	ui32SGXRevision = OMAP5430_CORE_REV;
-#else
 	ui32SGXRevision = OSReadHWReg((IMG_PVOID)((IMG_PBYTE)pvRegsLinAddr),
-			EUR_CR_CORE_REVISION);
-#endif
-
+								  EUR_CR_CORE_REVISION);
 #else
 	ui32SGXRevision = 0;
 #endif
@@ -436,7 +417,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 	}
 	SYS_SPECIFIC_DATA_SET(&gsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_LOCATEDEV);
 
-	eError = SysPMRuntimeRegister(gpsSysSpecificData);
+	eError = SysPMRuntimeRegister();
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysInitialise: Failed to register with OSPM!"));
@@ -574,7 +555,7 @@ PVRSRV_ERROR SysInitialise(IMG_VOID)
 	return PVRSRV_OK;
 }
 
-#if defined(CONFIG_OMAPLFB)
+#if 0 // defined(CONFIG_OMAPLFB)
 int OMAPLFBRegisterPVRDriver(void * pfnFuncTable);
 #endif
 
@@ -640,7 +621,8 @@ PVRSRV_ERROR SysFinalise(IMG_VOID)
 	DisableSGXClocks(gpsSysData);
 #endif	/* SUPPORT_ACTIVE_POWER_MANAGEMENT */
 
-#if defined(CONFIG_OMAPLFB)
+    PVR_DPF((PVR_DBG_ERROR,"AC: Calling OMAPLFBRegisterPVRDriver"));
+#if 0 // defined(CONFIG_OMAPLFB)
 	if (OMAPLFBRegisterPVRDriver((void *)&PVRGetDisplayClassJTable) != 0)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"SysFinalise: Failed to register PVR driver with omaplfb"));
@@ -736,7 +718,7 @@ PVRSRV_ERROR SysDeinitialise (SYS_DATA *psSysData)
 
 	if (SYS_SPECIFIC_DATA_TEST(gpsSysSpecificData, SYS_SPECIFIC_DATA_ENABLE_PM_RUNTIME))
 	{
-		eError = SysPMRuntimeUnregister(gpsSysSpecificData);
+		eError = SysPMRuntimeUnregister();
 		if (eError != PVRSRV_OK)
 		{
 			PVR_DPF((PVR_DBG_ERROR,"SysDeinitialise: Failed to unregister with OSPM!"));
@@ -1281,19 +1263,14 @@ PVRSRV_ERROR SysDevicePostPowerState(IMG_UINT32				ui32DeviceIndex,
 	return eError;
 }
 
-IMG_VOID SysLockSystemSuspend(IMG_VOID)
+#if defined(SYS_SUPPORTS_SGX_IDLE_CALLBACK)
+
+IMG_VOID SysSGXIdleTransition(IMG_BOOL bSGXIdle)
 {
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_lock(&gpsSysSpecificData->wake_lock);
-#endif
+	PVR_DPF((PVR_DBG_MESSAGE, "SysSGXIdleTransition switch to %u", bSGXIdle));
 }
 
-IMG_VOID SysUnlockSystemSuspend(IMG_VOID)
-{
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_unlock(&gpsSysSpecificData->wake_lock);
-#endif
-}
+#endif /* defined(SYS_SUPPORTS_SGX_IDLE_CALLBACK) */
 
 /*****************************************************************************
  @Function        SysOEMFunction

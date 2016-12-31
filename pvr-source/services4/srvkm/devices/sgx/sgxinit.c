@@ -69,7 +69,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "ttrace.h"
 
 IMG_UINT32 g_ui32HostIRQCountSample = 0;
-extern int powering_down;
 
 #if defined(PVRSRV_USSE_EDM_STATUS_DEBUG)
 
@@ -767,9 +766,6 @@ static PVRSRV_ERROR DevInitSGXPart1 (IMG_VOID *pvDeviceNode)
 	psDevInfo->eDeviceType 		= DEV_DEVICE_TYPE;
 	psDevInfo->eDeviceClass 	= DEV_DEVICE_CLASS;
 
-	/* Initialize SGX idle status */
-	psDevInfo->bSGXIdle = IMG_TRUE;
-
 	/* Store the devinfo as its needed by dynamically enumerated systems called from BM */
 	psDeviceNode->pvDevice = (IMG_PVOID)psDevInfo;
 
@@ -1252,7 +1248,6 @@ static INLINE IMG_UINT32 GetDirListBaseReg(IMG_UINT32 ui32Index)
 }
 #endif
 
-void dsscomp_kdump(void);
 /*!
 *******************************************************************************
 
@@ -1273,8 +1268,6 @@ IMG_VOID SGXDumpDebugInfo (PVRSRV_SGXDEV_INFO	*psDevInfo,
 						   IMG_BOOL				bDumpSGXRegs)
 {
 	IMG_UINT32	ui32CoreNum;
-
-	dsscomp_kdump();
 
 	PVR_LOG(("SGX debug (%s)", PVRVERSION_STRING));
 
@@ -1593,9 +1586,6 @@ IMG_VOID HWRecoveryResetSGX (PVRSRV_DEVICE_NODE *psDeviceNode,
 	
 	PVR_UNREFERENCED_PARAMETER(ui32Component);
 
-	/* Debug dumps associated with HWR can be long. Delay system suspend */
-	SysLockSystemSuspend();
-
 	/*
 		Ensure that hardware recovery is serialised with any power transitions.
 	*/
@@ -1650,8 +1640,6 @@ IMG_VOID HWRecoveryResetSGX (PVRSRV_DEVICE_NODE *psDeviceNode,
 	PDUMPRESUME();
 
 	PVRSRVPowerUnlock(ui32CallerID);
-
-	SysUnlockSystemSuspend();
 
 	/* Send a dummy kick so that we start processing again */
 	SGXScheduleProcessQueuesKM(psDeviceNode);
@@ -1816,7 +1804,7 @@ IMG_BOOL SGX_ISRHandler (IMG_VOID *pvData)
 
 	/* Real Hardware */
 	{
-		IMG_UINT32 ui32EventStatus = 0, ui32EventEnable = 0;
+		IMG_UINT32 ui32EventStatus, ui32EventEnable;
 		IMG_UINT32 ui32EventClear = 0;
 #if defined(SGX_FEATURE_DATA_BREAKPOINTS)
 		IMG_UINT32 ui32EventStatus2, ui32EventEnable2;
@@ -1835,19 +1823,15 @@ IMG_BOOL SGX_ISRHandler (IMG_VOID *pvData)
 		psDeviceNode = (PVRSRV_DEVICE_NODE *)pvData;
 		psDevInfo = (PVRSRV_SGXDEV_INFO *)psDeviceNode->pvDevice;
 
-		if(!powering_down) {
-			ui32EventStatus = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_STATUS);
-			ui32EventEnable = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_HOST_ENABLE);
-		}
+		ui32EventStatus = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_STATUS);
+		ui32EventEnable = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_HOST_ENABLE);
 
 		/* test only the unmasked bits */
 		ui32EventStatus &= ui32EventEnable;
 
 #if defined(SGX_FEATURE_DATA_BREAKPOINTS)
-		if(!powering_down) {
-			ui32EventStatus2 = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_STATUS2);
-			ui32EventEnable2 = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_HOST_ENABLE2);
-		}
+		ui32EventStatus2 = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_STATUS2);
+		ui32EventEnable2 = OSReadHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_HOST_ENABLE2);
 
 		/* test only the unmasked bits */
 		ui32EventStatus2 &= ui32EventEnable2;
@@ -1882,10 +1866,8 @@ IMG_BOOL SGX_ISRHandler (IMG_VOID *pvData)
 			ui32EventClear |= EUR_CR_EVENT_HOST_CLEAR_MASTER_INTERRUPT_MASK;
 
 			/* clear the events */
-			if(!powering_down) {
-				OSWriteHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_HOST_CLEAR, ui32EventClear);
-				OSWriteHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_HOST_CLEAR2, ui32EventClear2);
-			}
+			OSWriteHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_HOST_CLEAR, ui32EventClear);
+			OSWriteHWReg(psDevInfo->pvRegsBaseKM, EUR_CR_EVENT_HOST_CLEAR2, ui32EventClear2);
 
 			/*
 				Sample the current count from the uKernel _after_ we've cleared the
@@ -2497,8 +2479,7 @@ PVRSRV_ERROR SGXDevInitCompatCheck(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	/*
 	 *  1. Check kernel-side and client-side build options
-	 * 	2. Ensure ukernel DDK version and driver DDK version are compatible
-	 * 	3. Check ukernel build options against kernel-side build options
+	 *  2. Check ukernel build options against kernel-side build options
 	 */
 
 	/*
@@ -2539,32 +2520,12 @@ PVRSRV_ERROR SGXDevInitCompatCheck(PVRSRV_DEVICE_NODE *psDeviceNode)
 	psSGXMiscInfoInt->ui32MiscInfoFlags |= PVRSRV_USSE_MISCINFO_GET_STRUCT_SIZES;
 	eError = SGXGetMiscInfoUkernel(psDevInfo, psDeviceNode, IMG_NULL);
 
-	/*
-	 * Validate DDK version
-	 */
 	if(eError != PVRSRV_OK)
 	{
-		PVR_LOG(("(FAIL) SGXInit: Unable to validate device DDK version"));
+		PVR_LOG(("(FAIL) SGXInit: Unable to validate hardware core revision"));
 		goto chk_exit;
 	}
 	psSGXFeatures = &((PVRSRV_SGX_MISCINFO_INFO*)(psMemInfo->pvLinAddrKM))->sSGXFeatures;
-	if( (psSGXFeatures->ui32DDKVersion !=
-		((PVRVERSION_MAJ << 16) |
-		 (PVRVERSION_MIN << 8) |
-		  PVRVERSION_BRANCH) ) ||
-		(psSGXFeatures->ui32DDKBuild != PVRVERSION_BUILD) )
-	{
-		PVR_LOG(("(FAIL) SGXInit: Incompatible driver DDK revision (%d)/device DDK revision (%d).",
-				PVRVERSION_BUILD, psSGXFeatures->ui32DDKBuild));
-		eError = PVRSRV_ERROR_DDK_VERSION_MISMATCH;
-		goto chk_exit;
-	}
-	else
-	{
-		PVR_DPF((PVR_DBG_MESSAGE, "SGXInit: driver DDK (%d) and device DDK (%d) match. [ OK ]",
-				PVRVERSION_BUILD, psSGXFeatures->ui32DDKBuild));
-	}
-
 	/*
 	 * 	Check hardware core revision is compatible with the one in software
 	 */
@@ -3349,6 +3310,14 @@ PVRSRV_ERROR SGXGetMiscInfoKM(PVRSRV_SGXDEV_INFO	*psDevInfo,
 
 		case SGX_MISC_INFO_DUMP_DEBUG_INFO_FORCE_REGS:
 		{
+			if(!OSProcHasPrivSrvInit())
+			{
+				PVR_DPF((PVR_DBG_ERROR, "Insufficient privileges to dump SGX "
+										"debug info with registers"));
+
+				return PVRSRV_ERROR_INVALID_MISCINFO;
+			}
+
 			PVR_LOG(("User requested SGX debug info"));
 
 			/* Dump SGX debug data to the kernel log. */

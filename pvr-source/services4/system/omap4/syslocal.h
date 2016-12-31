@@ -91,10 +91,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 #endif
 
-#if defined(CONFIG_HAS_WAKELOCK)
-#include <linux/wakelock.h>
-#endif
-
 #if !defined(PVR_NO_OMAP_TIMER)
 #define PVR_OMAP_TIMER_BASE_IN_SYS_SPEC_DATA
 #endif
@@ -188,9 +184,9 @@ typedef struct _SYS_SPECIFIC_DATA_TAG_
 #if defined(PVR_OMAP_USE_DM_TIMER_API)
 	struct omap_dm_timer *psGPTimer;
 #endif
-#if defined(CONFIG_HAS_WAKELOCK)
-	struct wake_lock wake_lock;
-#endif /* CONFIG_HAS_WAKELOCK */
+	IMG_UINT32 ui32SGXFreqListSize;
+	IMG_UINT32 *pui32SGXFreqList;
+	IMG_UINT32 ui32SGXFreqListIndex;
 #endif	/* defined(__linux__) */
 } SYS_SPECIFIC_DATA;
 
@@ -211,12 +207,11 @@ IMG_VOID UnwrapSystemPowerChange(SYS_SPECIFIC_DATA *psSysSpecData);
 
 #if defined(__linux__)
 
-PVRSRV_ERROR SysPMRuntimeRegister(SYS_SPECIFIC_DATA *psSysSpecificData);
-PVRSRV_ERROR SysPMRuntimeUnregister(SYS_SPECIFIC_DATA *psSysSpecificData);
+PVRSRV_ERROR SysPMRuntimeRegister(void);
+PVRSRV_ERROR SysPMRuntimeUnregister(void);
 
 PVRSRV_ERROR SysDvfsInitialize(SYS_SPECIFIC_DATA *psSysSpecificData);
 PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData);
-int pvr_access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
 
 #else /* defined(__linux__) */
 
@@ -251,8 +246,6 @@ static INLINE PVRSRV_ERROR SysDvfsDeinitialize(void)
 {
 	return PVRSRV_OK;
 }
-
-#define pvr_access_process_vm(tsk, addr, buf, len, write) -1
 
 #endif /* defined(__linux__) */
 

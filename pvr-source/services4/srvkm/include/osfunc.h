@@ -347,18 +347,12 @@ static INLINE PVRSRV_ERROR OSReleaseSubMemHandle(IMG_HANDLE hOSMemHandle, IMG_UI
 #endif
 
 IMG_UINT32 OSGetCurrentProcessIDKM(IMG_VOID);
-int OSGetProcCmdline(IMG_UINT32 ui32PID, char * buffer, int buff_size);
-const char* OSGetPathBaseName(char * buffer, int buff_size);
 IMG_UINTPTR_T OSGetCurrentThreadID( IMG_VOID );
 IMG_VOID OSMemSet(IMG_VOID *pvDest, IMG_UINT8 ui8Value, IMG_SIZE_T ui32Size);
 
 PVRSRV_ERROR OSAllocPages_Impl(IMG_UINT32 ui32Flags, IMG_SIZE_T ui32Size, IMG_UINT32 ui32PageSize,
 							   IMG_PVOID pvPrivData, IMG_UINT32 ui32PrivDataLength, IMG_HANDLE hBMHandle, IMG_PVOID *ppvLinAddr, IMG_HANDLE *phPageAlloc);
 PVRSRV_ERROR OSFreePages(IMG_UINT32 ui32Flags, IMG_SIZE_T ui32Size, IMG_PVOID pvLinAddr, IMG_HANDLE hPageAlloc);
-
-IMG_INT32
-OSGetMemMultiPlaneInfo(IMG_HANDLE hOSMemHandle, IMG_UINT32* pui32AddressOffsets,
-		IMG_UINT32* ui32NumAddrOffsets);
 
 
 /*---------------------

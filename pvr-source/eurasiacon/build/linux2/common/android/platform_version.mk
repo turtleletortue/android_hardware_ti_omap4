@@ -41,8 +41,8 @@
 # Figure out the version of Android we're building against.
 #
 PLATFORM_VERSION := $(shell \
-	if [ -f $(TARGET_ROOT)/product/$(TARGET_PRODUCT)/system/build.prop ]; then \
-		cat $(TARGET_ROOT)/product/$(TARGET_PRODUCT)/system/build.prop | \
+	if [ -f $(TARGET_ROOT)/product/$(TARGET_DEVICE)/system/build.prop ]; then \
+		cat $(TARGET_ROOT)/product/$(TARGET_DEVICE)/system/build.prop | \
 			grep ^ro.build.version.release | cut -f2 -d'=' | cut -f1 -d'-'; \
 	else \
 		echo 4.0.3; \

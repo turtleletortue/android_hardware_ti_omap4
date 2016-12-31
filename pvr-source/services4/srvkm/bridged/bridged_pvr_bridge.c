@@ -683,12 +683,6 @@ PVRSRVAllocDeviceMemBW(IMG_UINT32 ui32BridgeID,
 							   &psMemInfo,
 							   "" /*FIXME: add something meaningful*/);
 
-	/* Allow mapping this buffer to the GC MMU only on allocation time, if
-	 * this buffer is mapped into another process context we don't want the
-	 * GC MMU mapping to happen.
-	 */
-	psAllocDeviceMemIN->ui32Attribs &= ~PVRSRV_MAP_GC_MMU;
-
 	if (bUseShareMemWorkaround)
 	{
         PVR_ASSERT(ui32ShareIndex != 7654321);
@@ -726,8 +720,6 @@ PVRSRVAllocDeviceMemBW(IMG_UINT32 ui32BridgeID,
 	psAllocDeviceMemOUT->sClientMemInfo.sDevVAddr = psMemInfo->sDevVAddr;
 	psAllocDeviceMemOUT->sClientMemInfo.ui32Flags = psMemInfo->ui32Flags;
 	psAllocDeviceMemOUT->sClientMemInfo.uAllocSize = psMemInfo->uAllocSize;
-	OSMemCopy(psAllocDeviceMemOUT->sClientMemInfo.planeOffsets, psMemInfo->planeOffsets,
-			sizeof(psMemInfo->planeOffsets));
 #if defined (SUPPORT_SID_INTERFACE)
 	/* see below */
 #else
@@ -875,217 +867,6 @@ PVRSRVFreeDeviceMemBW(IMG_UINT32 ui32BridgeID,
 
 
 static IMG_INT
-PVRSRVMultiManageDevMemBW(IMG_UINT32 ui32BridgeID,
-		PVRSRV_BRIDGE_IN_MULTI_MANAGE_DEV_MEM *psMultiMemDevRequestIN,
-		PVRSRV_BRIDGE_OUT_MULTI_MANAGE_DEV_MEM *psMultiMemDevRequestOUT,
-		PVRSRV_PER_PROCESS_DATA *psPerProc)
-{
-	IMG_HANDLE hDevCookieInt;
-	PVRSRV_KERNEL_MEM_INFO *psSharedBuffKernelMemInfo = NULL;
-	PVRSRV_MANAGE_DEV_MEM_REQUEST* pRequestsArray;
-	PVRSRV_MANAGE_DEV_MEM_RESPONSE* pResponseArray;
-	IMG_UINT32 reqNum;
-
-	PVRSRV_BRIDGE_ASSERT_CMD(ui32BridgeID, PVRSRV_BRIDGE_MULTI_MANAGE_DEV_MEM);
-
-	psMultiMemDevRequestOUT->eError =
-			PVRSRVLookupHandle(psPerProc->psHandleBase, &hDevCookieInt,
-					psMultiMemDevRequestIN->hDevCookie,
-					PVRSRV_HANDLE_TYPE_DEV_NODE);
-
-	if(psMultiMemDevRequestOUT->eError != PVRSRV_OK)
-	{
-		PVR_DPF((PVR_DBG_ERROR,"%s: invalid hDevCookie", __FUNCTION__));
-		return 0;
-	}
-
-	if(psMultiMemDevRequestIN->hKernelMemInfo)
-	{
-		PVRSRV_MULTI_MANAGE_DEV_MEM_REQUESTS* psMultiMemDevRequest;
-		psMultiMemDevRequestOUT->eError =
-			PVRSRVLookupHandle(psPerProc->psHandleBase,
-						(IMG_VOID **)&psSharedBuffKernelMemInfo,
-						#if defined (SUPPORT_SID_INTERFACE)
-						psMultiMemDevRequestIN->hKernelMemInfo,
-						#else
-						psMultiMemDevRequestIN->hKernelMemInfo,
-						#endif
-						PVRSRV_HANDLE_TYPE_SHARED_SYS_MEM_INFO);
-
-		if(psMultiMemDevRequestOUT->eError != PVRSRV_OK)
-		{
-			PVR_DPF((PVR_DBG_ERROR,"%s: invalid shared memory hKernelMemInfo", __FUNCTION__));
-			return 0;
-		}
-
-		psMultiMemDevRequest = (PVRSRV_MULTI_MANAGE_DEV_MEM_REQUESTS*)psSharedBuffKernelMemInfo->pvLinAddrKM;
-		if( (psMultiMemDevRequest->psSharedMemClientMemInfo != psMultiMemDevRequestIN->psSharedMemClientMemInfo ) ||
-				(psMultiMemDevRequest->ui32MaxNumberOfRequests != psMultiMemDevRequestIN->ui32MaxNumberOfRequests) ||
-				psMultiMemDevRequest->ui32NumberOfValidRequests != psMultiMemDevRequestIN->ui32NumberOfValidRequests ||
-				psMultiMemDevRequest->ui32CtrlFlags != psMultiMemDevRequestIN->ui32CtrlFlags)
-		{
-			psMultiMemDevRequestOUT->eError = PVRSRV_ERROR_BAD_MAPPING;
-			return 0;
-		}
-		pRequestsArray = psMultiMemDevRequest->sMemRequests;
-		pResponseArray = psMultiMemDevRequest->sMemRequests;
-	}
-	else
-	{
-		pRequestsArray = psMultiMemDevRequestIN->sMemRequests;
-		pResponseArray =  psMultiMemDevRequestOUT->sMemResponse;
-	}
-
-	PVR_DPF((PVR_DBG_MESSAGE, "\n%s: %s %d Number of request/s, Control flag = 0x%08x\n",
-			__FUNCTION__,
-			(psMultiMemDevRequestIN->hKernelMemInfo ? "Shared" : "Direct"),
-			 psMultiMemDevRequestIN->ui32NumberOfValidRequests,
-			 psMultiMemDevRequestIN->ui32CtrlFlags));
-
-	for(reqNum = 0; reqNum < psMultiMemDevRequestIN->ui32NumberOfValidRequests; reqNum++)
-	{
-		PVRSRV_MANAGE_DEV_MEM_REQUEST *pRequest = &pRequestsArray[reqNum];
-		PVRSRV_MANAGE_DEV_MEM_REQUEST *pResponse = &pResponseArray[reqNum];
-		PVRSRV_KERNEL_MEM_INFO	*psKernelMemInfo  = NULL;
-
-		/* At the kernel size, psClientMemInfo only works as a verification token */
-		if(psMultiMemDevRequestIN->hKernelMemInfo == NULL)
-		{
-			pResponse->psClientMemInfo = pRequest->psClientMemInfo;
-			pResponse->eReqType = pRequest->eReqType;
-		}
-
-		PVR_DPF((PVR_DBG_MESSAGE, "%s: Request %d for ClientMemInfo %p\n"
-				"DevVirtAddr 0x%08x, GpuRefCount %d "
-				"CpuVirtAddr %p, CpuRefCount %d, Kernel Handle %p, sync %p\n"
-				"Size %d, Attrib 0x%08x, Align %d, Subsystem 0x%llx, Hints 0x%08x "
-				"transfer slot %d\n",
-				__FUNCTION__, pResponse->eReqType,
-				pRequest->psClientMemInfo,
-				pRequest->sDevVAddr.uiAddr,
-				pRequest->ui32GpuMapRefCount,
-				pRequest->pvLinAddr,
-				pRequest->ui32CpuMapRefCount,
-				pRequest->hKernelMemInfo,
-				pRequest->hKernelSyncInfo,
-				pRequest->uSize,
-				pRequest->ui32Attribs,
-				pRequest->uAlignment,
-				pRequest->uiSubSystem,
-				pRequest->ui32Hints,
-				pRequest->ui32TransferFromToReqSlotIndx));
-
-		pResponse->eError = PVRSRVLookupHandle(psPerProc->psHandleBase,
-						(IMG_PVOID *)&psKernelMemInfo,
-						#if defined (SUPPORT_SID_INTERFACE)
-						pRequest->hKernelMemInfo,
-						#else
-						pRequest->hKernelMemInfo,
-						#endif
-						PVRSRV_HANDLE_TYPE_MEM_INFO);
-		if(pResponse->eError != PVRSRV_OK)
-		{
-			PVR_DPF((PVR_DBG_ERROR,"%s: invalid hKernelMemInfo for slot %d",
-					__FUNCTION__, reqNum));
-			continue;
-		}
-
-		PVR_DPF((PVR_DBG_MESSAGE, "%s: KernelMemInfo %p -%s SHARED\n"
-				"DevVirtAddr 0x%08x, RefCount %d "
-				"Size %d, Flags 0x%08x, OrigAlign %d, Subsystem 0x%llx, Hints 0x%08x\n",
-				__FUNCTION__, psKernelMemInfo,
-				(psKernelMemInfo->sShareMemWorkaround.bInUse ? "" : "NOT"),
-				psKernelMemInfo->sDevVAddr.uiAddr,
-				psKernelMemInfo->ui32RefCount,
-				psKernelMemInfo->uAllocSize,
-				psKernelMemInfo->ui32Flags,
-				psKernelMemInfo->sShareMemWorkaround.ui32OrigReqAlignment,
-				(IMG_UINT64)0, 0));
-
-		if(psKernelMemInfo->sDevVAddr.uiAddr != pRequest->sDevVAddr.uiAddr)
-		{
-			PVR_DPF((PVR_DBG_WARNING, "%s: Kernel and Client MemInfo's "
-				"virtual addresses are not equal\n"
-				"Kernel DevVirtAddr 0x%08x != Client DevVirtAddr 0x%08x",
-				__FUNCTION__,
-				psKernelMemInfo->sDevVAddr.uiAddr, pRequest->sDevVAddr.uiAddr));
-		}
-
-		switch(pResponse->eReqType)
-		{
-			case PVRSRV_MULTI_MANAGE_DEV_MEM_RQST_MAP:
-			case PVRSRV_MULTI_MANAGE_DEV_MEM_RQST_LOCK_MAP:
-				{
-					IMG_INT32 result = PVRSRVRemapToDevKM(hDevCookieInt,
-						psKernelMemInfo, &pResponse->sDevVAddr);
-
-					if(result < 0)
-					{
-						pResponse->eError = -result;
-						PVR_DPF((PVR_DBG_ERROR, "Request for GPU Virtual "
-							"memory mapping had failed "
-							"with error %d",
-							pResponse->eError));
-					}
-					else
-					{
-						pResponse->ui32GpuMapRefCount = result;
-						pResponse->eError = PVRSRV_OK;
-					}
-				}
-				break;
-			case PVRSRV_MULTI_MANAGE_DEV_MEM_RQST_SWAP_MAP_TO_NEXT:
-				pResponse->eError = PVRSRV_OK;
-				pResponse->ui32GpuMapRefCount = 1;
-				pResponse->sDevVAddr = psKernelMemInfo->sDevVAddr;
-				break;
-			case PVRSRV_MULTI_MANAGE_DEV_MEM_RQST_UNMAP:
-			case PVRSRV_MULTI_MANAGE_DEV_MEM_RQST_UNLOCK_MAP:
-				{
-					IMG_INT32 result = PVRSRVUnmapFromDevKM(hDevCookieInt, psKernelMemInfo);
-					if(result < 0)
-					{
-						pResponse->eError = -result;
-						PVR_DPF((PVR_DBG_ERROR, "Request for GPU Virtual memory "
-								"un-mapping had failed "
-									"with error %d",
-									pResponse->eError));
-					}
-					else
-					{
-						pResponse->ui32GpuMapRefCount = result;
-						pResponse->eError = PVRSRV_OK;
-					}
-					pResponse->sDevVAddr = psKernelMemInfo->sDevVAddr;
-				}
-				break;
-			case PVRSRV_MULTI_MANAGE_DEV_MEM_RQST_SWAP_MAP_FROM_PREV:
-				pResponse->eError = PVRSRV_OK;
-				pResponse->ui32GpuMapRefCount = 1;
-				pResponse->sDevVAddr = psKernelMemInfo->sDevVAddr;
-				break;
-			default:
-				pResponse->eError = PVRSRV_ERROR_INVALID_PARAMS;
-				break;
-		}
-
-		PVR_DPF((PVR_DBG_MESSAGE, "%s: RETURN: ClientMemInfo %p "
-				"DevVirtAddr 0x%08x, GpuMapRefCount %d, err %d\n",
-				__FUNCTION__, pRequest->psClientMemInfo,
-				pResponse->sDevVAddr.uiAddr,
-				pResponse->ui32GpuMapRefCount,
-				pResponse->eError));
-	}
-
-	if(psMultiMemDevRequestIN->hKernelMemInfo == NULL)
-		psMultiMemDevRequestOUT->ui32CtrlFlags = psMultiMemDevRequestIN->ui32CtrlFlags;
-	/* No status implemented yet */
-	psMultiMemDevRequestOUT->ui32StatusFlags = 0;
-
-	return 0;
-}
-
-static IMG_INT
 PVRSRVExportDeviceMemBW(IMG_UINT32 ui32BridgeID,
 					  PVRSRV_BRIDGE_IN_EXPORTDEVICEMEM *psExportDeviceMemIN,
 					  PVRSRV_BRIDGE_OUT_EXPORTDEVICEMEM *psExportDeviceMemOUT,
@@ -1205,19 +986,6 @@ PVRSRVMapDeviceMemoryBW(IMG_UINT32 ui32BridgeID,
 	{
 		PVR_DPF((PVR_DBG_MESSAGE, "using the mem wrap workaround."));
 
-		/* Check the XPROC mapping count -if it is "0",
-		 * then the object is about to go away - do not allow mapping */
-		if(BM_XProcGetShareDataRefCount(psSrcKernelMemInfo->sShareMemWorkaround.ui32ShareIndex) < 1)
-		{
-			psMapDevMemOUT->eError = PVRSRV_ERROR_MAPPING_NOT_FOUND;
-			PVR_DPF((PVR_DBG_WARNING, "%s: Can't map buffer with slot %d, size %d "
-					"and refcount %d\n\t Invalid XPROC refcount of %d",
-				__FUNCTION__, psSrcKernelMemInfo->sShareMemWorkaround.ui32ShareIndex,
-				psSrcKernelMemInfo->uAllocSize, psSrcKernelMemInfo->ui32RefCount,
-				BM_XProcGetShareDataRefCount(psSrcKernelMemInfo->sShareMemWorkaround.ui32ShareIndex)));
-			return 0;
-		}
-
 		/* Ensure we get the same ID for this allocation, such that it
 		   inherits the same physical block.  Rather than add a lot of
 		   plumbing to several APIs, we call into buffer manager directly
@@ -1294,8 +1062,6 @@ PVRSRVMapDeviceMemoryBW(IMG_UINT32 ui32BridgeID,
 	psMapDevMemOUT->sDstClientMemInfo.sDevVAddr = psDstKernelMemInfo->sDevVAddr;
 	psMapDevMemOUT->sDstClientMemInfo.ui32Flags = psDstKernelMemInfo->ui32Flags;
     psMapDevMemOUT->sDstClientMemInfo.uAllocSize = psDstKernelMemInfo->uAllocSize;
-	OSMemCopy(psMapDevMemOUT->sDstClientMemInfo.planeOffsets, psDstKernelMemInfo->planeOffsets,
-			sizeof(psDstKernelMemInfo->planeOffsets));
 #if defined (SUPPORT_SID_INTERFACE)
 	/* see below */
 #else
@@ -5218,10 +4984,6 @@ CommonBridgeInit(IMG_VOID)
     SetDispatchTableEntry(PVRSRV_BRIDGE_CHG_DEV_MEM_ATTRIBS, PVRSRVChangeDeviceMemoryAttributesBW);
     SetDispatchTableEntry(PVRSRV_BRIDGE_MAP_DEV_MEMORY_2, PVRSRVMapDeviceMemoryBW);
     SetDispatchTableEntry(PVRSRV_BRIDGE_EXPORT_DEVICEMEM_2, PVRSRVExportDeviceMemBW);
-    SetDispatchTableEntry(PVRSRV_BRIDGE_MULTI_MANAGE_DEV_MEM, PVRSRVMultiManageDevMemBW);
-    SetDispatchTableEntry(PVRSRV_BRIDGE_CORE_CMD_RESERVED_1, DummyBW);
-    SetDispatchTableEntry(PVRSRV_BRIDGE_CORE_CMD_RESERVED_2, DummyBW);
-    SetDispatchTableEntry(PVRSRV_BRIDGE_CORE_CMD_RESERVED_3, DummyBW);
 #if defined(SUPPORT_ION)
 	SetDispatchTableEntry(PVRSRV_BRIDGE_MAP_ION_HANDLE, PVRSRVMapIonHandleBW);
 	SetDispatchTableEntry(PVRSRV_BRIDGE_UNMAP_ION_HANDLE, PVRSRVUnmapIonHandleBW);
@@ -5416,6 +5178,7 @@ IMG_INT BridgedDispatchKM(PVRSRV_PER_PROCESS_DATA * psPerProc,
 					case PVRSRV_GET_BRIDGE_ID(PVRSRV_BRIDGE_DISCONNECT_SERVICES):
 					case PVRSRV_GET_BRIDGE_ID(PVRSRV_BRIDGE_INITSRV_CONNECT):
 					case PVRSRV_GET_BRIDGE_ID(PVRSRV_BRIDGE_INITSRV_DISCONNECT):
+					case PVRSRV_GET_BRIDGE_ID(PVRSRV_BRIDGE_UM_KM_COMPAT_CHECK):
 						break;
 					default:
 						PVR_DPF((PVR_DBG_ERROR, "%s: Driver initialisation not completed yet.",
@@ -5476,16 +5239,22 @@ IMG_INT BridgedDispatchKM(PVRSRV_PER_PROCESS_DATA * psPerProc,
 				 __FUNCTION__, ui32BridgeID));
 		goto return_fault;
 	}
-	pfBridgeHandler =
-		(BridgeWrapperFunction)g_BridgeDispatchTable[ui32BridgeID].pfFunction;
-	err = pfBridgeHandler(ui32BridgeID,
+
+	if( ui32BridgeID == PVRSRV_GET_BRIDGE_ID(PVRSRV_BRIDGE_UM_KM_COMPAT_CHECK))
+		PVRSRVCompatCheckKM(psBridgeIn, psBridgeOut);
+	else
+	{
+		pfBridgeHandler =
+			(BridgeWrapperFunction)g_BridgeDispatchTable[ui32BridgeID].pfFunction;
+		err = pfBridgeHandler(ui32BridgeID,
 						  psBridgeIn,
 						  psBridgeOut,
 						  psPerProc);
-	if(err < 0)
-	{
-		goto return_fault;
-	}
+		if(err < 0)
+		{
+			goto return_fault;
+		}
+ 	}
 
 #if defined(__linux__)
 	/* This should be moved into the linux specific code */

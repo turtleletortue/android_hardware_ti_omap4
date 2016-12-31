@@ -48,9 +48,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pdump_km.h"
 #include "deviceid.h"
 #include "ra.h"
-#if defined(__linux__)
-#include "sysfs.h"
-#endif
 #if defined(TTRACE)
 #include "ttrace.h"
 #endif
@@ -61,7 +58,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "lists.h"
 
 IMG_UINT32	g_ui32InitFlags;
-extern int powering_down;
 
 /* mark which parts of Services were initialised */
 #define		INIT_DATA_ENABLE_PDUMPINIT	0x1U
@@ -157,6 +153,37 @@ PVRSRV_ERROR FreeDeviceID(SYS_DATA *psSysData, IMG_UINT32 ui32DevID)
 	PVR_ASSERT(psDeviceWalker < psDeviceEnd);
 
 	return PVRSRV_ERROR_INVALID_DEVICEID;
+}
+/*!
+******************************************************************************
+
+ @Function		PVRSRVCompatCheckKM
+
+ @Description   	UM/KM ddk branch Compatibility check function
+
+ @input 		psUserModeDDKDetails: User mode DDK version
+
+ @output		In case of incompatibility, returns PVRSRV_ERROR_DDK_VERSION_MISMATCH
+
+ @Return   		PVRSRV_ERROR
+
+******************************************************************************/
+IMG_VOID IMG_CALLCONV PVRSRVCompatCheckKM(PVRSRV_BRIDGE_IN_COMPAT_CHECK *psUserModeDDKDetails, PVRSRV_BRIDGE_RETURN *psRetOUT)
+{
+
+	if(psUserModeDDKDetails->ui32DDKVersion != ((PVRVERSION_MAJ << 16) | (PVRVERSION_MIN << 8))
+		|| (psUserModeDDKDetails->ui32DDKBuild != PVRVERSION_BUILD))
+	{
+		psRetOUT->eError = PVRSRV_ERROR_DDK_VERSION_MISMATCH;
+		PVR_LOG(("(FAIL) UM-KM DDK Mismatch UM-(%d) KM-(%d).",
+						psUserModeDDKDetails->ui32DDKBuild, PVRVERSION_BUILD));
+	}
+	else
+	{
+		psRetOUT->eError = PVRSRV_OK;
+		PVR_LOG(("UM DDK-(%d) and KM DDK-(%d) match. [ OK ]",
+						psUserModeDDKDetails->ui32DDKBuild ,PVRVERSION_BUILD));
+	}
 }
 
 
@@ -366,14 +393,6 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVInit(PSYS_DATA psSysData)
 {
 	PVRSRV_ERROR	eError;
 
-#if defined(__linux__)
-	eError = PVRSRVCreateSysfsEntry();
-	if (eError != PVRSRV_OK)
-	{
-		goto Error;
-	}
-#endif
-	
 	/* Initialise Resource Manager */
 	eError = ResManInit();
 	if (eError != PVRSRV_OK)
@@ -1486,9 +1505,8 @@ IMG_BOOL IMG_CALLCONV PVRSRVDeviceLISR(PVRSRV_DEVICE_NODE *psDeviceNode)
 		{
 			bStatus = (*psDeviceNode->pfnDeviceISR)(psDeviceNode->pvISRData);
 		}
-		if(!powering_down) {
-			SysClearInterrupts(psSysData, psDeviceNode->ui32SOCInterruptBit);
-		}
+
+		SysClearInterrupts(psSysData, psDeviceNode->ui32SOCInterruptBit);
 	}
 
 out:

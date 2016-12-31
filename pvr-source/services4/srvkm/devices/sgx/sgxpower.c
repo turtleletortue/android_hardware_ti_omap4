@@ -49,7 +49,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "pdump_km.h"
 
 extern IMG_UINT32 g_ui32HostIRQCountSample;
-int powering_down = 0;
 
 #if defined(SUPPORT_HW_RECOVERY)
 static PVRSRV_ERROR SGXAddTimer(PVRSRV_DEVICE_NODE		*psDeviceNode,
@@ -357,12 +356,6 @@ PVRSRV_ERROR SGXPrePowerState (IMG_HANDLE				hDevHandle,
 		}
 		#endif /* NO_HARDWARE */
 
-		if (psDevInfo->bSGXIdle == IMG_FALSE)
-		{
-			psDevInfo->bSGXIdle = IMG_TRUE;
-			SysSGXIdleEntered();
-		}
-
 		#if defined(PDUMP)
 		PDUMPCOMMENT("TA/3D CCB Control - Wait for power event on uKernel.");
 		PDUMPMEMPOL(psDevInfo->psKernelSGXHostCtlMemInfo,
@@ -415,8 +408,6 @@ PVRSRV_ERROR SGXPrePowerState (IMG_HANDLE				hDevHandle,
 							  psDevInfo->ui32MasterClkGateStatus2Mask,
 							  "Wait for SGX master clock gating (2)");
 		#endif /* SGX_FEATURE_MP */
-
-		powering_down = 1;
 
 		if (eNewPowerState == PVRSRV_DEV_POWER_STATE_OFF)
 		{
@@ -497,7 +488,6 @@ PVRSRV_ERROR SGXPostPowerState (IMG_HANDLE				hDevHandle,
 				PVR_DPF((PVR_DBG_ERROR,"SGXPostPowerState: SGXInitialise failed"));
 				return eError;
 			}
-			powering_down = 0;
 		}
 		else
 		{

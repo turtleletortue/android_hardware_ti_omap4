@@ -84,9 +84,14 @@ extern "C" {
 /*
  * Note *REMEMBER* to update PVRSRV_BRIDGE_LAST_CMD (below) if you add any new
  * bridge commands!
+ * The command number of PVRSRV_BRIDGE_UM_KM_COMPAT_CHECK needs to be maintained as 0 across previous ddks, for compatibility check command to execute successfully
  */
 
-#define PVRSRV_BRIDGE_CORE_CMD_FIRST			0UL
+#define PVRSRV_BRIDGE_UMKM_CMD_FIRST			0UL
+#define PVRSRV_BRIDGE_UM_KM_COMPAT_CHECK		PVRSRV_IOWR(0)
+#define PVRSRV_BRIDGE_UMKM_CMD_LAST				(0)
+
+#define PVRSRV_BRIDGE_CORE_CMD_FIRST			(PVRSRV_BRIDGE_UMKM_CMD_LAST + 1)
 #define PVRSRV_BRIDGE_ENUM_DEVICES				PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+0)	/*!< enumerate device bridge index */
 #define PVRSRV_BRIDGE_ACQUIRE_DEVICEINFO		PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+1)	/*!< acquire device data bridge index */
 #define PVRSRV_BRIDGE_RELEASE_DEVICEINFO		PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+2)	/*!< release device data bridge index */
@@ -118,18 +123,12 @@ extern "C" {
 #define PVRSRV_BRIDGE_CHG_DEV_MEM_ATTRIBS		PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+28)
 #define PVRSRV_BRIDGE_MAP_DEV_MEMORY_2			PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+29)
 #define PVRSRV_BRIDGE_EXPORT_DEVICEMEM_2		PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+30)
-
-#define PVRSRV_BRIDGE_MULTI_MANAGE_DEV_MEM      PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+31)
-#define PVRSRV_BRIDGE_CORE_CMD_RESERVED_1       PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+32)
-#define PVRSRV_BRIDGE_CORE_CMD_RESERVED_2       PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+33)
-#define PVRSRV_BRIDGE_CORE_CMD_RESERVED_3       PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+34)
-
 #if defined (SUPPORT_ION)
-#define PVRSRV_BRIDGE_MAP_ION_HANDLE			PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+35)
-#define PVRSRV_BRIDGE_UNMAP_ION_HANDLE			PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+36)
-#define PVRSRV_BRIDGE_CORE_CMD_LAST				(PVRSRV_BRIDGE_CORE_CMD_FIRST+37)
+#define PVRSRV_BRIDGE_MAP_ION_HANDLE			PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+31)
+#define PVRSRV_BRIDGE_UNMAP_ION_HANDLE			PVRSRV_IOWR(PVRSRV_BRIDGE_CORE_CMD_FIRST+32)
+#define PVRSRV_BRIDGE_CORE_CMD_LAST				(PVRSRV_BRIDGE_CORE_CMD_FIRST+32)
 #else
-#define PVRSRV_BRIDGE_CORE_CMD_LAST				(PVRSRV_BRIDGE_CORE_CMD_FIRST+34)
+#define PVRSRV_BRIDGE_CORE_CMD_LAST				(PVRSRV_BRIDGE_CORE_CMD_FIRST+30)
 #endif
 /* SIM */
 #define PVRSRV_BRIDGE_SIM_CMD_FIRST				(PVRSRV_BRIDGE_CORE_CMD_LAST+1)
@@ -328,8 +327,8 @@ typedef struct PVRSRV_BRIDGE_PACKAGE_TAG
  *****************************************************************************/
 typedef struct PVRSRV_BRIDGE_IN_CONNECT_SERVICES_TAG
 {
-	IMG_UINT32		ui32BridgeFlags; /* Must be first member of structure */
-	IMG_UINT32		ui32Flags;
+	IMG_UINT32			ui32BridgeFlags; /* Must be first member of structure */
+	IMG_UINT32			ui32Flags;
 } PVRSRV_BRIDGE_IN_CONNECT_SERVICES;
 
 /******************************************************************************
@@ -1784,6 +1783,13 @@ typedef struct PVRSRV_BRIDGE_OUT_RELEASE_MMAP_DATA_TAG
 } PVRSRV_BRIDGE_OUT_RELEASE_MMAP_DATA;
 //#endif
 
+typedef struct PVRSRV_BRIDGE_IN_COMPAT_CHECK
+{
+	IMG_UINT32      ui32BridgeFlags; /* Must be first member of structure */
+	IMG_UINT32      ui32DDKVersion;
+	IMG_UINT32      ui32DDKBuild;
+
+} PVRSRV_BRIDGE_IN_COMPAT_CHECK;
 
 /******************************************************************************
  *	'bridge in' get misc info
@@ -2224,24 +2230,6 @@ typedef struct PVRSRV_BRIDGE_IN_CHG_DEV_MEM_ATTRIBS_TAG
 	IMG_UINT32			ui32Attribs;
 } PVRSRV_BRIDGE_IN_CHG_DEV_MEM_ATTRIBS;
 
-/******************************************************************************
- *	'bridge in' multi manage device memory
- *****************************************************************************/
-typedef PVRSRV_MULTI_MANAGE_DEV_MEM_REQUESTS PVRSRV_BRIDGE_IN_MULTI_MANAGE_DEV_MEM;
-
-/******************************************************************************
- *	'bridge out' multi manage device memory
- *****************************************************************************/
-typedef struct PVRSRV_BRIDGE_OUT_MULTI_MANAGE_DEV_MEM_TAG
-{
-	IMG_UINT32 		ui32NumberOfRequestsProcessed;
-	IMG_UINT32 		ui32CtrlFlags;
-	IMG_UINT32 		ui32StatusFlags;
-	IMG_UINT32		ui32IndexError;
-	PVRSRV_ERROR 	eError;
-	/* Memory Requests Array - used only with direct (not memory shared( mode */
-	PVRSRV_MANAGE_DEV_MEM_RESPONSE sMemResponse[PVRSRV_MULTI_MANAGE_DEV_MEM_MAX_DIRECT_SIZE];
-}PVRSRV_BRIDGE_OUT_MULTI_MANAGE_DEV_MEM;
 
 #if defined (__cplusplus)
 }

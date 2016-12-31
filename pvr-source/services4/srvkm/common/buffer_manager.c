@@ -59,14 +59,14 @@ BM_ImportMemory(IMG_VOID *pH, IMG_SIZE_T uSize,
 				IMG_UINT32 uFlags, IMG_PVOID pvPrivData,
 				IMG_UINT32 ui32PrivDataLength, IMG_UINTPTR_T *pBase);
 
-static IMG_INT32
+static IMG_BOOL
 DevMemoryAlloc (BM_CONTEXT *pBMContext,
 				BM_MAPPING *pMapping,
 				IMG_SIZE_T *pActualSize,
 				IMG_UINT32 uFlags,
 				IMG_UINT32 dev_vaddr_alignment,
 				IMG_DEV_VIRTADDR *pDevVAddr);
-static IMG_INT32
+static IMG_VOID
 DevMemoryFree (BM_MAPPING *pMapping);
 
 /*!
@@ -156,82 +156,64 @@ AllocMemory (BM_CONTEXT			*pBMContext,
 		}
 
 		/* Now allocate from the arena we chose above. */
-		/* in case of a pageable buffer, we must bypass RA which could
-		 * combine/split individual mappings between buffers:
-		 */
-		if (uFlags & (PVRSRV_MEM_SPARSE | PVRSRV_HAP_GPU_PAGEABLE))
+		if (uFlags & PVRSRV_MEM_SPARSE)
 		{
 			IMG_BOOL bSuccess;
 			IMG_SIZE_T puiActualSize;
-			IMG_SIZE_T uRequestSize = uSize;
 
-			if(uFlags & PVRSRV_MEM_SPARSE)
-			{
-				uRequestSize = ui32ChunkSize * ui32NumPhysChunks;
-				uSize = ui32ChunkSize * ui32NumVirtChunks;
-			}
+			/* Allocate physcial memory */
+			bSuccess = BM_ImportMemory(psBMHeap,
+									   ui32ChunkSize * ui32NumPhysChunks,
+									   &puiActualSize,
+									   &pMapping,
+									   uFlags,
+									   pvPrivData,
+									   ui32PrivDataLength,
+									   IMG_NULL);	/* We allocate VM space */
 
-			/* Allocate physical memory */
-			if (!BM_ImportMemory(psBMHeap,
-					uRequestSize,
-					&puiActualSize,
-					&pMapping,
-					uFlags,
-					pvPrivData,
-					ui32PrivDataLength,
-					(IMG_UINTPTR_T *)&(pBuf->DevVAddr.uiAddr)))
+			if (!bSuccess)
 			{
-				PVR_DPF((PVR_DBG_ERROR,
-						"BM_ImportMemory: Failed to allocate device memory"));
+				PVR_DPF((PVR_DBG_ERROR, "AllocMemory: BM_ImportMemory failed"));
 				return IMG_FALSE;
 			}
-			pBuf->hOSMemHandle = pMapping->hOSMemHandle;
 
-			/* We allocate VM space for sparse area */
-			if(uFlags & PVRSRV_MEM_SPARSE)
+			if (puiActualSize != ui32ChunkSize * ui32NumPhysChunks)
 			{
-				if (puiActualSize != ui32ChunkSize * ui32NumPhysChunks)
-				{
-					/*
-					* Most likely the chunk size was not host page multiple,
-					* so return with an error
-					*/
-					PVR_DPF((PVR_DBG_ERROR, "AllocMemory: Failed to allocate"
-							"memory for sparse allocation"));
-					BM_FreeMemory(pArena, IMG_NULL, pMapping);
-					return IMG_FALSE;
-				}
-
-				pMapping->uSizeVM = uSize;
-				pMapping->ui32ChunkSize = ui32ChunkSize;
-				pMapping->ui32NumVirtChunks = ui32NumVirtChunks;
-				pMapping->ui32NumPhysChunks = ui32NumPhysChunks;
-				pMapping->pabMapChunk = pabMapChunk;
-
-				if (!(uFlags & PVRSRV_HAP_NO_GPU_VIRTUAL_ON_ALLOC))
-				{
-					/* Allocate VA space and map in the physical memory */
-					bSuccess = DevMemoryAlloc (pBMContext,
-							pMapping,
-							IMG_NULL,
-							uFlags,
-							(IMG_UINT32)uDevVAddrAlignment,
-							&pMapping->DevVAddr);
-					if (!bSuccess)
-					{
-						PVR_DPF((PVR_DBG_ERROR,
-								"AllocMemory: Failed to allocate device memory"));
-						BM_FreeMemory(pArena, IMG_NULL, pMapping);
-						return IMG_FALSE;
-					}
-
-					/* uDevVAddrAlignment is currently set to zero so QAC
-					 * generates warning which we override */
-					/* PRQA S 3356,3358 1 */
-					PVR_ASSERT (uDevVAddrAlignment>1?(pMapping->DevVAddr.uiAddr%uDevVAddrAlignment)==0:1);
-					pBuf->DevVAddr.uiAddr = pMapping->DevVAddr.uiAddr;
-				}
+				/*
+					Most likley the chunksize was not host page multiple so
+					return with an error
+				*/
+				PVR_DPF((PVR_DBG_ERROR, "AllocMemory: Failed to allocate memory for sparse allocation"));
+				BM_FreeMemory(pArena, IMG_NULL, pMapping);
+				return IMG_FALSE;
 			}
+
+			pMapping->uSizeVM = ui32ChunkSize * ui32NumVirtChunks;
+			uSize = pMapping->uSizeVM;
+			pMapping->ui32ChunkSize = ui32ChunkSize;
+			pMapping->ui32NumVirtChunks = ui32NumVirtChunks;
+			pMapping->ui32NumPhysChunks = ui32NumPhysChunks;
+			pMapping->pabMapChunk = pabMapChunk;
+
+			/* Allocate VA space and map in the physical memory */
+			bSuccess = DevMemoryAlloc (pBMContext,
+										pMapping,
+										IMG_NULL,
+										uFlags,
+										(IMG_UINT32)uDevVAddrAlignment,
+										&pMapping->DevVAddr);
+			if (!bSuccess)
+			{
+				PVR_DPF((PVR_DBG_ERROR,
+						"AllocMemory: Failed to allocate device memory"));
+				BM_FreeMemory(pArena, IMG_NULL, pMapping);
+				return IMG_FALSE;
+			}
+		
+			/* uDevVAddrAlignment is currently set to zero so QAC generates warning which we override */
+			/* PRQA S 3356,3358 1 */
+			PVR_ASSERT (uDevVAddrAlignment>1?(pMapping->DevVAddr.uiAddr%uDevVAddrAlignment)==0:1);
+			pBuf->DevVAddr.uiAddr = pMapping->DevVAddr.uiAddr;
 		}
 		else
 		{
@@ -246,8 +228,7 @@ AllocMemory (BM_CONTEXT			*pBMContext,
 						  ui32PrivDataLength,
 						  (IMG_UINTPTR_T *)&(pBuf->DevVAddr.uiAddr)))
 			{
-				PVR_DPF((PVR_DBG_ERROR, "AllocMemory: RA_Alloc(0x%x) hOSMemHandle %p, flags 0x%08x FAILED",
-						uSize, pMapping->hOSMemHandle, uFlags));
+				PVR_DPF((PVR_DBG_ERROR, "AllocMemory: RA_Alloc(0x%x) FAILED", uSize));
 				return IMG_FALSE;
 			}
 		}
@@ -354,7 +335,6 @@ AllocMemory (BM_CONTEXT			*pBMContext,
 		pMapping->CpuVAddr = IMG_NULL;
 		pMapping->CpuPAddr.uiAddr = 0;
 		pMapping->DevVAddr = pBuf->DevVAddr;
-		pMapping->ui32MappingCount = 1;
 		pMapping->psSysAddr = IMG_NULL;
 		pMapping->uSize = uSize;
 		pMapping->hOSMemHandle = 0;
@@ -362,7 +342,6 @@ AllocMemory (BM_CONTEXT			*pBMContext,
 
 	/* Record the arena pointer in the mapping. */
 	pMapping->pArena = pArena;
-	pMapping->ui32DevVAddrAlignment = uDevVAddrAlignment;
 
 	/* record the heap */
 	pMapping->pBMHeap = psBMHeap;
@@ -425,7 +404,7 @@ WrapMemory (BM_HEAP *psBMHeap,
 {
 	IMG_DEV_VIRTADDR DevVAddr = {0};
 	BM_MAPPING *pMapping;
-	IMG_INT32 bResult;
+	IMG_BOOL bResult;
 	IMG_SIZE_T const ui32PageSize = HOST_PAGESIZE();
 
 	PVR_DPF ((PVR_DBG_MESSAGE,
@@ -538,7 +517,7 @@ WrapMemory (BM_HEAP *psBMHeap,
 							 uFlags | PVRSRV_MEM_READ | PVRSRV_MEM_WRITE,
 							 IMG_CAST_TO_DEVVADDR_UINT(ui32PageSize),
 							 &DevVAddr);
-	if (bResult <= 0)
+	if (!bResult)
 	{
 		PVR_DPF((PVR_DBG_ERROR,
 				"WrapMemory: DevMemoryAlloc(0x%x) failed",
@@ -777,11 +756,9 @@ FreeBuf (BM_BUF *pBuf, IMG_UINT32 ui32Flags, IMG_BOOL bFromAllocator)
 				OSReleaseSubMemHandle(pBuf->hOSMemHandle, ui32Flags);
 			}
 		}
-
 		if(ui32Flags & PVRSRV_MEM_RAM_BACKED_ALLOCATION)
 		{
 			/* Submemhandle is required by exported mappings */
-
 			if ((pBuf->ui32ExportCount == 0) && (pBuf->ui32RefCount == 0))
 			{
 				/*
@@ -789,27 +766,17 @@ FreeBuf (BM_BUF *pBuf, IMG_UINT32 ui32Flags, IMG_BOOL bFromAllocator)
 					Note: currently no need to distinguish between hm_env and hm_contiguous
 				*/
 				PVR_ASSERT(pBuf->ui32ExportCount == 0);
-				if (pBuf->pMapping->ui32Flags & (PVRSRV_MEM_SPARSE | PVRSRV_HAP_GPU_PAGEABLE))
+				if (pBuf->pMapping->ui32Flags & PVRSRV_MEM_SPARSE)
 				{
-					IMG_UINT32 ui32FreeSize = 0;
-					IMG_PVOID pvFreePtr = IMG_NULL;
-
-					if(pBuf->pMapping->ui32Flags & PVRSRV_MEM_SPARSE)
-					{
-						ui32FreeSize = sizeof(IMG_BOOL) * pBuf->pMapping->ui32NumVirtChunks;
-						pvFreePtr = pBuf->pMapping->pabMapChunk;
-					}
-
-					/* With sparse and page-able allocations we don't go through the sub-alloc RA */
+					IMG_UINT32 ui32FreeSize = sizeof(IMG_BOOL) * pBuf->pMapping->ui32NumVirtChunks;
+					IMG_PVOID pvFreePtr = pBuf->pMapping->pabMapChunk;
+					
+					/* With sparse allocations we don't go through the sub-alloc RA */
 					BM_FreeMemory(pBuf->pMapping->pBMHeap, pBuf->DevVAddr.uiAddr, pBuf->pMapping);
-
-					if(pvFreePtr)
-					{
-						OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP,
+					OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP,
 							  ui32FreeSize,
 							  pvFreePtr,
 							  IMG_NULL);
-					}
 				}
 				else
 				{
@@ -1772,7 +1739,7 @@ BM_Wrap (	IMG_HANDLE hDevMemHeap,
 	psBMHeap = (BM_HEAP*)hDevMemHeap;
 	psBMContext = psBMHeap->pBMContext;
 
-	uFlags = psBMHeap->ui32Attribs & (PVRSRV_HAP_CACHETYPE_MASK | PVRSRV_HAP_MAPTYPE_MASK | PVRSRV_HAP_MAPPING_CTRL_MASK);
+	uFlags = psBMHeap->ui32Attribs & (PVRSRV_HAP_CACHETYPE_MASK | PVRSRV_HAP_MAPTYPE_MASK);
 
 	if ((pui32Flags != IMG_NULL) && ((*pui32Flags & PVRSRV_HAP_CACHETYPE_MASK) != 0))
 	{
@@ -2111,101 +2078,6 @@ BM_HandleToOSMemHandle(BM_HANDLE hBuf)
 	return pBuf->hOSMemHandle;
 }
 
-/*----------------------------------------------------------------------------
-<function>
-	FUNCTION:   BM_UnmapFromDev
-
-	PURPOSE:	Unmaps a buffer from GPU virtual address space, but otherwise
-				leaves buffer intact (ie. not changing any CPU virtual space
-				mappings, etc).  This in conjunction with BM_RemapToDev() can
-				be used to migrate buffers in and out of GPU virtual address
-				space to deal with fragmentation and/or limited size of GPU
-				MMU.
-
-	PARAMETERS: In:  hBuf - buffer handle.
-	RETURNS:	IMG_TRUE - Success
-				IMG_FALSE - Failure
-</function>
------------------------------------------------------------------------------*/
-IMG_INT32
-BM_UnmapFromDev(BM_HANDLE hBuf)
-{
-	BM_BUF *pBuf = (BM_BUF *)hBuf;
-	BM_MAPPING *pMapping;
-	IMG_INT32 result;
-
-	PVR_ASSERT (pBuf != IMG_NULL);
-
-	if (pBuf == IMG_NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "BM_UnmapFromDev: invalid parameter"));
-		return -(PVRSRV_ERROR_INVALID_PARAMS);
-	}
-
-	pMapping = pBuf->pMapping;
-
-	if ((pMapping->ui32Flags & PVRSRV_HAP_GPU_PAGEABLE) == 0)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "BM_UnmapFromDev: cannot unmap non-pageable buffer"));
-		return -(PVRSRV_ERROR_STILL_MAPPED);
-	}
-
-	result = DevMemoryFree(pMapping);
-
-	if(result == 0)
-		pBuf->DevVAddr.uiAddr = PVRSRV_BAD_DEVICE_ADDRESS;
-
-	return result;
-}
-
-/*----------------------------------------------------------------------------
-<function>
-	FUNCTION:   BM_RemapToDev
-
-	PURPOSE:	Maps a buffer back into GPU virtual address space, after it
-				has been BM_UnmapFromDev()'d.  After this operation, the GPU
-				virtual address may have changed, so BM_HandleToDevVaddr()
-				should be called to get the new address.
-
-	PARAMETERS: In:  hBuf - buffer handle.
-	RETURNS:	IMG_TRUE - Success
-				IMG_FALSE - Failure
-</function>
------------------------------------------------------------------------------*/
-IMG_INT32
-BM_RemapToDev(BM_HANDLE hBuf)
-{
-	BM_BUF *pBuf = (BM_BUF *)hBuf;
-	BM_MAPPING *pMapping;
-	IMG_INT32 mapCount;
-
-	PVR_ASSERT (pBuf != IMG_NULL);
-
-	if (pBuf == IMG_NULL)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "BM_RemapToDev: invalid parameter"));
-		return -PVRSRV_ERROR_INVALID_PARAMS;
-	}
-
-	pMapping = pBuf->pMapping;
-
-	if ((pMapping->ui32Flags & PVRSRV_HAP_GPU_PAGEABLE) == 0)
-	{
-		PVR_DPF((PVR_DBG_ERROR, "BM_RemapToDev: cannot remap non-pageable buffer"));
-		return -PVRSRV_ERROR_BAD_MAPPING;
-	}
-
-	mapCount = DevMemoryAlloc(pMapping->pBMHeap->pBMContext, pMapping, IMG_NULL,
-			pMapping->ui32Flags, pMapping->ui32DevVAddrAlignment, &pBuf->DevVAddr);
-
-	if(mapCount <= 0)
-	{
-		PVR_DPF((PVR_DBG_WARNING, "BM_RemapToDev: failed to allocate device memory"));
-	}
-
-	return mapCount;
-}
-
 /*!
 ******************************************************************************
 
@@ -2229,11 +2101,11 @@ BM_RemapToDev(BM_HANDLE hBuf)
 					 alignment, or 0.
 	@Output     pDevVAddr - receives the device virtual base address of the
 					 allocated block.
-	@Return 	IMG_INT32 - Reference count
-				-1 - Failed.
+	@Return 	IMG_TRUE - Success
+				IMG_FALSE - Failed.
 
  *****************************************************************************/
-static IMG_INT32
+static IMG_BOOL
 DevMemoryAlloc (BM_CONTEXT *pBMContext,
 				BM_MAPPING *pMapping,
 				IMG_SIZE_T *pActualSize,
@@ -2246,26 +2118,12 @@ DevMemoryAlloc (BM_CONTEXT *pBMContext,
 	IMG_UINT32 ui32PDumpSize = (IMG_UINT32)pMapping->uSize;
 #endif
 
-	if(pMapping->ui32MappingCount > 0)
-	{
-		pMapping->ui32MappingCount++;
-		*pDevVAddr = pMapping->DevVAddr;
-		return pMapping->ui32MappingCount;
-	}
-
 	psDeviceNode = pBMContext->psDeviceNode;
-
-	pMapping->ui32DevVAddrAlignment = dev_vaddr_alignment;
 
 	if(uFlags & PVRSRV_MEM_INTERLEAVED)
 	{
 		/* double the size */
-		/* don't continue to alter the size each time a buffer is remapped..
-		 * we only want to do this the first time
-		 */
-		/* TODO: FIXME: There is something wrong with this logic */
-		if (pMapping->ui32MappingCount == 0)
-			pMapping->uSize *= 2;
+		pMapping->uSize *= 2;
 	}
 
 #ifdef PDUMP
@@ -2287,8 +2145,7 @@ DevMemoryAlloc (BM_CONTEXT *pBMContext,
 									&(pMapping->DevVAddr)))
 	{
 		PVR_DPF((PVR_DBG_ERROR, "DevMemoryAlloc ERROR MMU_Alloc"));
-		pDevVAddr->uiAddr = PVRSRV_BAD_DEVICE_ADDRESS;
-		return -(PVRSRV_ERROR_FAILED_TO_ALLOC_VIRT_MEMORY);
+		return IMG_FALSE;
 	}
 
 #ifdef SUPPORT_SGX_MMU_BYPASS
@@ -2391,19 +2248,17 @@ DevMemoryAlloc (BM_CONTEXT *pBMContext,
 			PVR_DPF((PVR_DBG_ERROR,
 				"Illegal value %d for pMapping->eCpuMemoryOrigin",
 				pMapping->eCpuMemoryOrigin));
-			return -(PVRSRV_ERROR_FAILED_TO_MAP_PAGE_TABLE);
+			return IMG_FALSE;
 	}
 
 #ifdef SUPPORT_SGX_MMU_BYPASS
 	DisableHostAccess(pBMContext->psMMUContext);
 #endif
 
-	pMapping->ui32MappingCount = 1;
-
-	return pMapping->ui32MappingCount;
+	return IMG_TRUE;
 }
 
-static IMG_INT32
+static IMG_VOID
 DevMemoryFree (BM_MAPPING *pMapping)
 {
 	PVRSRV_DEVICE_NODE *psDeviceNode;
@@ -2411,23 +2266,6 @@ DevMemoryFree (BM_MAPPING *pMapping)
 #ifdef PDUMP
 	IMG_UINT32 ui32PSize;
 #endif
-
-	if(pMapping->ui32MappingCount > 1)
-	{
-		pMapping->ui32MappingCount--;
-
-		/* Nothing else to do for now */
-		return pMapping->ui32MappingCount;
-	}
-
-	if (pMapping->ui32MappingCount == 0)
-	{
-		/* already unmapped from GPU.. bail */
-		return -(PVRSRV_ERROR_MAPPING_NOT_FOUND);
-	}
-
-	/* Then pMapping->ui32MappingCount is 1
-	 * ready to release GPU mapping */
 
 	psDeviceNode = pMapping->pBMHeap->pBMContext->psDeviceNode;
 	sDevPAddr = psDeviceNode->pfnMMUGetPhysPageAddr(pMapping->pBMHeap->pMMUHeap, pMapping->DevVAddr);
@@ -2457,15 +2295,11 @@ DevMemoryFree (BM_MAPPING *pMapping)
 	}
 	PVR_ASSERT(pMapping->uSizeVM != 0);
 	psDeviceNode->pfnMMUFree (pMapping->pBMHeap->pMMUHeap, pMapping->DevVAddr, IMG_CAST_TO_DEVVADDR_UINT(pMapping->uSizeVM));
-
-	pMapping->ui32MappingCount = 0;
-
-	return pMapping->ui32MappingCount;
 }
 
 /* If this array grows larger, it might be preferable to use a hashtable rather than an array. */
 #ifndef XPROC_WORKAROUND_NUM_SHAREABLES
-#define XPROC_WORKAROUND_NUM_SHAREABLES 500
+#define XPROC_WORKAROUND_NUM_SHAREABLES 200
 #endif
 
 #define XPROC_WORKAROUND_BAD_SHAREINDEX 0773407734
@@ -2479,14 +2313,6 @@ static IMG_UINT32 gXProcWorkaroundState = XPROC_WORKAROUND_UNKNOWN;
 
 /* PRQA S 0686 10 */ /* force compiler to init structure */
 XPROC_DATA gXProcWorkaroundShareData[XPROC_WORKAROUND_NUM_SHAREABLES] = {{0}};
-
-IMG_INT32 BM_XProcGetShareDataRefCount(IMG_UINT32 ui32Index)
-{
-	if(ui32Index >= XPROC_WORKAROUND_NUM_SHAREABLES)
-		return -1;
-
-	return gXProcWorkaroundShareData[ui32Index].ui32RefCount;
-}
 
 PVRSRV_ERROR BM_XProcWorkaroundSetShareIndex(IMG_UINT32 ui32Index)
 {
@@ -2581,8 +2407,7 @@ XProcWorkaroundAllocShareable(RA_ARENA *psArena,
 		if (ui32AllocFlags != gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].ui32AllocFlags)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
-					 "%s ERROR: Flags don't match (Shared 0x%08x, Requested 0x%08x)!",
-					 __FUNCTION__,
+					 "Can't!  Flags don't match! (I had 0x%08x, you gave 0x%08x)",
 					 gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].ui32AllocFlags,
 					 ui32AllocFlags));
 			return PVRSRV_ERROR_INVALID_PARAMS;
@@ -2591,24 +2416,14 @@ XProcWorkaroundAllocShareable(RA_ARENA *psArena,
 		if (ui32Size != gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].ui32Size)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
-					 "%s ERROR: Size doesn't match (Shared %d, Requested %d) with flags 0x%08x - 0x%08x!",
-					 __FUNCTION__,
-					 gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].ui32Size,
-					 ui32Size,
-					 gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].ui32AllocFlags,
-					 ui32AllocFlags));
+					 "Can't!  Size doesn't match!"));
 			return PVRSRV_ERROR_INVALID_PARAMS;
 		}
 
 		if (ui32PageSize != gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].ui32PageSize)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
-					 "%s ERROR: Page Size doesn't match (Shared %d, Requested %d) with flags 0x%08x - 0x%08x!",
-					 __FUNCTION__,
-					 gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].ui32PageSize,
-					 ui32PageSize,
-					 gXProcWorkaroundShareData[gXProcWorkaroundShareIndex].ui32AllocFlags,
-					 ui32AllocFlags));
+					 "Can't!  Page Size doesn't match!"));
 			return PVRSRV_ERROR_INVALID_PARAMS;
 		}
 
@@ -2849,7 +2664,7 @@ BM_ImportMemory (IMG_VOID *pH,
 	BM_MAPPING *pMapping;
 	BM_HEAP *pBMHeap = pH;
 	BM_CONTEXT *pBMContext = pBMHeap->pBMContext;
-	IMG_INT32 uResult;
+	IMG_BOOL bResult;
 	IMG_SIZE_T uSize;
 	IMG_SIZE_T uPSize;
 	IMG_SIZE_T uDevVAddrAlignment = 0; /* ? */
@@ -2882,7 +2697,6 @@ BM_ImportMemory (IMG_VOID *pH,
 	pMapping->hOSMemHandle = 0;
 	pMapping->CpuVAddr = 0;
 	pMapping->DevVAddr.uiAddr = 0;
-	pMapping->ui32MappingCount = 0;
 	pMapping->CpuPAddr.uiAddr = 0;
 	pMapping->uSize = uSize;
 	if ((uFlags & PVRSRV_MEM_SPARSE) == 0)
@@ -3128,39 +2942,18 @@ BM_ImportMemory (IMG_VOID *pH,
 		goto fail_mapping_alloc;
 	}
 
-        if(uFlags & PVRSRV_MEM_ION)
-        {
-                IMG_UINT32 ui32AddressOffsets[PVRSRV_MAX_NUMBER_OF_MM_BUFFER_PLANES];
-                IMG_UINT32 ui32NumAddrOffsets = PVRSRV_MAX_NUMBER_OF_MM_BUFFER_PLANES;
-
-                IMG_INT32 retSize = OSGetMemMultiPlaneInfo(pMapping->hOSMemHandle,
-                                ui32AddressOffsets, &ui32NumAddrOffsets);
-
-                if(retSize > 0 && pActualSize)
-                {
-                        *pActualSize = pMapping->uSize = retSize;
-                }
-        }
-
 	/*
 	 * Allocate some device memory for what we just allocated.
 	 */
-	/*
-	* Do not allocate GPU mapping if NO_GPU_VIRTUAL_ON_ALLOC is requested.
-	* In the case where CBI is enabled, this allows for late
-	* GPU mapping. This flag is, otherwise, used in cases where only
-	* the memory management feature of the driver is utilized, without
-	* a need for GPU rendering
-	*/
-	if ((uFlags & (PVRSRV_MEM_SPARSE | PVRSRV_HAP_NO_GPU_VIRTUAL_ON_ALLOC)) == 0)
+	if ((uFlags & PVRSRV_MEM_SPARSE) == 0)
 	{
-		uResult = DevMemoryAlloc (pBMContext,
+		bResult = DevMemoryAlloc (pBMContext,
 									pMapping,
 									IMG_NULL,
 									uFlags,
 									(IMG_UINT32)uDevVAddrAlignment,
 									&pMapping->DevVAddr);
-		if (uResult <= 0)
+		if (!bResult)
 		{
 			PVR_DPF((PVR_DBG_ERROR,
 					"BM_ImportMemory: DevMemoryAlloc(0x%x) failed",
@@ -3172,10 +2965,9 @@ BM_ImportMemory (IMG_VOID *pH,
 		/* PRQA S 3356,3358 1 */
 		PVR_ASSERT (uDevVAddrAlignment>1?(pMapping->DevVAddr.uiAddr%uDevVAddrAlignment)==0:1);
 		PVR_ASSERT(pBase);
+		*pBase = pMapping->DevVAddr.uiAddr;
 	}
 
-	if(pBase)
-		*pBase = pMapping->DevVAddr.uiAddr;
 	*ppsMapping = pMapping;
 
 	PVR_DPF ((PVR_DBG_MESSAGE, "BM_ImportMemory: IMG_TRUE"));

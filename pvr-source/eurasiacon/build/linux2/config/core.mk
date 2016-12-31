@@ -176,9 +176,7 @@ $(call directory-must-exist,$(TOP)/eurasiacon/build/linux2/$(PVR_BUILD_DIR))
 # final programs/libraries, and install/rc scripts.
 #
 BUILD	?= release
-# TI: Added SGX type to binary build location so builds for different GPUs
-#     with the same build directory are put in different places
-OUT		?= $(TOP)/eurasiacon/binary2_$(SGXCORE)_$(SGX_CORE_REV)_$(PVR_BUILD_DIR)_$(BUILD)
+OUT		?= $(TOP)/eurasiacon/binary2_$(PVR_BUILD_DIR)_$(BUILD)
 override OUT := $(if $(filter /%,$(OUT)),$(OUT),$(TOP)/$(OUT))
 
 CONFIG_MK			:= $(OUT)/config.mk
@@ -524,6 +522,7 @@ $(eval $(call TunableKernelConfigC,SUPPORT_LINUX_X86_PAT,1))
 $(eval $(call TunableKernelConfigC,SGX_DYNAMIC_TIMING_INFO,))
 $(eval $(call TunableKernelConfigC,SYS_SGX_ACTIVE_POWER_LATENCY_MS,))
 $(eval $(call TunableKernelConfigC,SYS_CUSTOM_POWERLOCK_WRAP,))
+$(eval $(call TunableKernelConfigC,SYS_SUPPORTS_SGX_IDLE_CALLBACK,))
 $(eval $(call TunableKernelConfigC,PVR_LINUX_USING_WORKQUEUES,))
 $(eval $(call TunableKernelConfigC,PVR_LINUX_MISR_USING_WORKQUEUE,))
 $(eval $(call TunableKernelConfigC,PVR_LINUX_MISR_USING_PRIVATE_WORKQUEUE,))
@@ -542,13 +541,6 @@ $(eval $(call TunableKernelConfigC,HYBRID_SHARED_PB_SIZE,))
 $(eval $(call TunableKernelConfigC,SUPPORT_LARGE_GENERAL_HEAP,))
 $(eval $(call TunableKernelConfigC,TTRACE,))
 
-ifeq ($(BUILD),debug)
-$(eval $(call TunableKernelConfigC,CONFIG_PVR_PROC_FS,1))
-else
-$(eval $(call TunableKernelConfigC,CONFIG_PVR_PROC_FS,))
-endif
-
-$(eval $(call TunableKernelConfigC,CONFIG_PVR_PROC_FS_HEAP_ALLOC_DEBUG,))
 
 $(eval $(call TunableBothConfigMake,SUPPORT_ION,))
 ifeq ($(USE_TI_LIBION),1)

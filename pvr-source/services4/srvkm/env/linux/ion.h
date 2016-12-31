@@ -52,8 +52,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #endif
 
 int PVRSRVExportFDToIONHandles(int fd, struct ion_client **client,
-								struct ion_handle **handles,
-								unsigned int *num_handles);
+								struct ion_handle *handles[2]);
 
 struct ion_handle *PVRSRVExportFDToIONHandle(int fd,
 											 struct ion_client **client);

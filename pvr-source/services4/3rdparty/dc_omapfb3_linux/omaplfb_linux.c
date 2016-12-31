@@ -162,6 +162,19 @@ MODULE_SUPPORTED_DEVICE(DEVNAME);
 #endif
 #endif	/* !defined(PVR_OMAPLFB_DRM_FB) */
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,1,0))
+#define OMAP_FB_UPDATE_MODE
+#define OMAP_UPDATE_MODE        omapfb_update_mode
+#define OMAP_UPDATE_MODE_AUTO       OMAPFB_AUTO_UPDATE
+#define OMAP_UPDATE_MODE_MANUAL     OMAPFB_MANUAL_UPDATE
+#define OMAP_UPDATE_MODE_DISABLED   OMAPFB_UPDATE_DISABLED
+#else
+#define OMAP_UPDATE_MODE        OMAP_UPDATE_MODE
+#define OMAP_UPDATE_MODE_AUTO       OMAP_UPDATE_MODE_AUTO
+#define OMAP_UPDATE_MODE_MANUAL     OMAP_UPDATE_MODE_MANUAL
+#define OMAP_UPDATE_MODE_DISABLED   OMAP_UPDATE_MODE_DISABLED
+#endif
+
 void *OMAPLFBAllocKernelMem(unsigned long ulSize)
 {
 	return kmalloc(ulSize, GFP_KERNEL);
@@ -420,13 +433,13 @@ void OMAPLFBFlip(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_BUFFER *psBuffer)
 }
 
 #if !defined(PVR_OMAPLFB_DRM_FB) || defined(DEBUG)
-static OMAPLFB_BOOL OMAPLFBValidateDSSUpdateMode(enum omap_dss_update_mode eMode)
+static OMAPLFB_BOOL OMAPLFBValidateDSSUpdateMode(enum OMAP_UPDATE_MODE eMode)
 {
 	switch (eMode)
 	{
-		case OMAP_DSS_UPDATE_AUTO:
-		case OMAP_DSS_UPDATE_MANUAL:
-		case OMAP_DSS_UPDATE_DISABLED:
+		case OMAP_UPDATE_MODE_AUTO:
+		case OMAP_UPDATE_MODE_MANUAL:
+		case OMAP_UPDATE_MODE_DISABLED:
 			return OMAPLFB_TRUE;
 		default:
 			break;
@@ -435,15 +448,15 @@ static OMAPLFB_BOOL OMAPLFBValidateDSSUpdateMode(enum omap_dss_update_mode eMode
 	return OMAPLFB_FALSE;
 }
 
-static OMAPLFB_UPDATE_MODE OMAPLFBFromDSSUpdateMode(enum omap_dss_update_mode eMode)
+static OMAPLFB_UPDATE_MODE OMAPLFBFromDSSUpdateMode(enum OMAP_UPDATE_MODE eMode)
 {
 	switch (eMode)
 	{
-		case OMAP_DSS_UPDATE_AUTO:
+		case OMAP_UPDATE_MODE_AUTO:
 			return OMAPLFB_UPDATE_MODE_AUTO;
-		case OMAP_DSS_UPDATE_MANUAL:
+		case OMAP_UPDATE_MODE_MANUAL:
 			return OMAPLFB_UPDATE_MODE_MANUAL;
-		case OMAP_DSS_UPDATE_DISABLED:
+		case OMAP_UPDATE_MODE_DISABLED:
 			return OMAPLFB_UPDATE_MODE_DISABLED;
 		default:
 			break;
@@ -468,16 +481,16 @@ static OMAPLFB_BOOL OMAPLFBValidateUpdateMode(OMAPLFB_UPDATE_MODE eMode)
 	return OMAPLFB_FALSE;
 }
 
-static enum omap_dss_update_mode OMAPLFBToDSSUpdateMode(OMAPLFB_UPDATE_MODE eMode)
+static enum OMAP_UPDATE_MODE OMAPLFBToDSSUpdateMode(OMAPLFB_UPDATE_MODE eMode)
 {
 	switch(eMode)
 	{
 		case OMAPLFB_UPDATE_MODE_AUTO:
-			return OMAP_DSS_UPDATE_AUTO;
+			return OMAP_UPDATE_MODE_AUTO;
 		case OMAPLFB_UPDATE_MODE_MANUAL:
-			return OMAP_DSS_UPDATE_MANUAL;
+			return OMAP_UPDATE_MODE_MANUAL;
 		case OMAPLFB_UPDATE_MODE_DISABLED:
-			return OMAP_DSS_UPDATE_DISABLED;
+			return OMAP_UPDATE_MODE_DISABLED;
 		default:
 			break;
 	}
@@ -505,7 +518,7 @@ static const char *OMAPLFBUpdateModeToString(OMAPLFB_UPDATE_MODE eMode)
 	return "Unknown Update Mode";
 }
 
-static const char *OMAPLFBDSSUpdateModeToString(enum omap_dss_update_mode eMode)
+static const char *OMAPLFBDSSUpdateModeToString(enum OMAP_UPDATE_MODE eMode)
 {
 	if (!OMAPLFBValidateDSSUpdateMode(eMode))
 	{
@@ -540,7 +553,7 @@ void OMAPLFBPrintInfo(OMAPLFB_DEVINFO *psDevInfo)
 	for (psConnector = NULL, uConnector = 0;
 		(psConnector = omap_fbdev_get_next_connector(psDevInfo->psLINFBInfo, psConnector)) != NULL; uConnector++)
 	{
-		enum omap_dss_update_mode eMode = omap_connector_get_update_mode(psConnector);
+		enum OMAP_UPDATE_MODE eMode = omap_connector_get_update_mode(psConnector);
 
 		DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX ": Device %u: Screen %u: %s (%d)\n", psDevInfo->uiFBDevID, uConnector, OMAPLFBDSSUpdateModeToString(eMode), (int)eMode));
 
@@ -575,16 +588,16 @@ OMAPLFB_UPDATE_MODE OMAPLFBGetUpdateMode(OMAPLFB_DEVINFO *psDevInfo)
 	{
 		switch(omap_connector_get_update_mode(psConnector))
 		{
-			case OMAP_DSS_UPDATE_MANUAL:
+			case OMAP_UPDATE_MODE_MANUAL:
 				eMode = OMAPLFB_UPDATE_MODE_MANUAL;
 				break;
-			case OMAP_DSS_UPDATE_DISABLED:
+			case OMAP_UPDATE_MODE_DISABLED:
 				if (eMode == OMAPLFB_UPDATE_MODE_UNDEFINED)
 				{
 					eMode = OMAPLFB_UPDATE_MODE_DISABLED;
 				}
 				break;
-			case OMAP_DSS_UPDATE_AUTO:
+			case OMAP_UPDATE_MODE_AUTO:
 				/* Fall through to default case */
 			default:
 				/* Asssume auto update is possible */
@@ -601,7 +614,7 @@ OMAPLFB_UPDATE_MODE OMAPLFBGetUpdateMode(OMAPLFB_DEVINFO *psDevInfo)
 	struct omap_dss_device *psDSSDev = fb2display(psDevInfo->psLINFBInfo);
 	OMAP_DSS_DRIVER(psDSSDrv, psDSSDev);
 
-	enum omap_dss_update_mode eMode;
+	enum OMAP_UPDATE_MODE eMode;
 
 	if (psDSSDrv == NULL)
 	{
@@ -609,17 +622,7 @@ OMAPLFB_UPDATE_MODE OMAPLFBGetUpdateMode(OMAPLFB_DEVINFO *psDevInfo)
 		return OMAPLFB_UPDATE_MODE_UNDEFINED;
 	}
 
-	if (psDSSDrv->get_update_mode == NULL)
-	{
-		if (strcmp(psDSSDev->name, "hdmi") == 0)
-		{
-			return OMAPLFB_UPDATE_MODE_AUTO;
-		}
-		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX ": %s: Device %u: No get_update_mode function\n", __FUNCTION__, psDevInfo->uiFBDevID));
-		return OMAPLFB_UPDATE_MODE_UNDEFINED;
-	}
-
-	eMode = psDSSDrv->get_update_mode(psDSSDev);
+	omapfb_get_update_mode(psDevInfo->psLINFBInfo, &eMode);
 	if (!OMAPLFBValidateDSSUpdateMode(eMode))
 	{
 			DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX ": %s: Device %u: Unknown update mode (%d)\n", __FUNCTION__, psDevInfo->uiFBDevID, (int)eMode));
@@ -634,7 +637,7 @@ OMAPLFB_BOOL OMAPLFBSetUpdateMode(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_UPDATE_MOD
 {
 #if defined(PVR_OMAPLFB_DRM_FB)
 	struct drm_connector *psConnector;
-	enum omap_dss_update_mode eDSSMode;
+	enum OMAP_UPDATE_MODE eDSSMode;
 	OMAPLFB_BOOL bSuccess = OMAPLFB_FALSE;
 	OMAPLFB_BOOL bFailure = OMAPLFB_FALSE;
 
@@ -684,23 +687,17 @@ OMAPLFB_BOOL OMAPLFBSetUpdateMode(OMAPLFB_DEVINFO *psDevInfo, OMAPLFB_UPDATE_MOD
 #else	/* defined(PVR_OMAPLFB_DRM_FB) */
 	struct omap_dss_device *psDSSDev = fb2display(psDevInfo->psLINFBInfo);
 	OMAP_DSS_DRIVER(psDSSDrv, psDSSDev);
-	enum omap_dss_update_mode eDSSMode;
+	enum OMAP_UPDATE_MODE eDSSMode;
 	int res;
-
-	if (psDSSDrv == NULL || psDSSDrv->set_update_mode == NULL)
-	{
-		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX ": %s: Device %u: Can't set update mode\n", __FUNCTION__, psDevInfo->uiFBDevID));
-		return OMAPLFB_FALSE;
-	}
 
 	if (!OMAPLFBValidateUpdateMode(eMode))
 	{
 			DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX ": %s: Device %u: Unknown update mode (%d)\n", __FUNCTION__, psDevInfo->uiFBDevID, (int)eMode));
 			return OMAPLFB_FALSE;
 	}
-	eDSSMode = OMAPLFBToDSSUpdateMode(eMode);
-
-	res = psDSSDrv->set_update_mode(psDSSDev, eDSSMode);
+	
+    eDSSMode = OMAPLFBToDSSUpdateMode(eMode);
+	res = omapfb_set_update_mode(psDevInfo->psLINFBInfo, eDSSMode);
 	if (res != 0)
 	{
 		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX ": %s: Device %u: set_update_mode (%s) failed (%d)\n", __FUNCTION__, psDevInfo->uiFBDevID, OMAPLFBDSSUpdateModeToString(eDSSMode), res));

@@ -57,21 +57,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <linux/fs.h>
 
 #if defined (CONFIG_ION_OMAP)
-#define MAX_HANDLES_PER_FD 2
 extern struct ion_client *gpsIONClient;
 
 int PVRSRVExportFDToIONHandles(int fd, struct ion_client **client,
-								struct ion_handle **handles,
-								unsigned int *num_handles)
+								struct ion_handle *handles[2])
 {
 	PVRSRV_FILE_PRIVATE_DATA *psPrivateData;
 	PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo;
 	LinuxMemArea *psLinuxMemArea;
 	PVRSRV_ERROR eError;
 	struct file *psFile;
-	int i;
-	unsigned int ui32NumHandles = *num_handles;
-	int ret = -EINVAL;
 
 	/* Take the bridge mutex so the handle won't be freed underneath us */
 	LinuxLockMutexNested(&gPVRSRVLock, PVRSRV_LOCK_CLASS_BRIDGE);
@@ -109,32 +104,10 @@ int PVRSRVExportFDToIONHandles(int fd, struct ion_client **client,
 		goto err_fput;
 	}
 
-	/* Client is requesting fewer handles then we have */
-	if(ui32NumHandles < psLinuxMemArea->uData.sIONTilerAlloc.ui32NumValidPlanes) {
-
-		PVR_DPF((PVR_DBG_ERROR, "%s: Client requested %u handles, but we have %u",
-								__func__,
-								ui32NumHandles,
-								psLinuxMemArea->uData.sIONTilerAlloc.ui32NumValidPlanes));
-
-		/* Clear client handles */
-		for (i = 0; i < ui32NumHandles; i++)
-			handles[i] = NULL;
-
-		/* Return number of handles to client */
-		*num_handles = psLinuxMemArea->uData.sIONTilerAlloc.ui32NumValidPlanes;
-		goto err_fput;
-	}
-
-	for (i = 0; (i < psLinuxMemArea->uData.sIONTilerAlloc.ui32NumValidPlanes) && (i < MAX_HANDLES_PER_FD); i++)
-		handles[i] = psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle[i];
-
-	*num_handles = i;
-
+	handles[0] = psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle[0];
+	handles[1] = psLinuxMemArea->uData.sIONTilerAlloc.psIONHandle[1];
 	if(client)
 		*client = gpsIONClient;
-
-	ret = 0;
 
 err_fput:
 	fput(psFile);
@@ -142,16 +115,15 @@ err_unlock:
 	/* Allow PVRSRV clients to communicate with srvkm again */
 	LinuxUnLockMutex(&gPVRSRVLock);
 
-	return ret;
+    return 0;
 }
 
 struct ion_handle *
 PVRSRVExportFDToIONHandle(int fd, struct ion_client **client)
 {
-	unsigned int num_handles = 1;
-	struct ion_handle *psHandle = IMG_NULL;
-	PVRSRVExportFDToIONHandles(fd, client, &psHandle, &num_handles);
-	return psHandle;
+	struct ion_handle *psHandles[2] = { IMG_NULL, IMG_NULL };
+	PVRSRVExportFDToIONHandles(fd, client, psHandles);
+	return psHandles[0];
 }
 
 EXPORT_SYMBOL(PVRSRVExportFDToIONHandles);
