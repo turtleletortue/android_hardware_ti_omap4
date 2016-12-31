@@ -48,17 +48,7 @@ else
 endif
 export USE_TI_LIBION
 
-# This isn't ideal, as there might be other 4470 products. The
-# blaze/blaze_tablet products support the 4470 SOM so handle those.
-#
-ifeq ($(TARGET_PRODUCT),blaze.4470)
-override TARGET_PRODUCT := blaze
-SGXCORE := 544
-SGX_CORE_REV := 112
-endif
-
-ifeq ($(TARGET_PRODUCT),blaze_tablet.4470)
-override TARGET_PRODUCT := blaze_tablet
+ifeq ($(TARGET_SGX),544sc)
 SGXCORE := 544
 SGX_CORE_REV := 112
 endif
