@@ -215,7 +215,7 @@ PVRSRV_ERROR EnableSGXClocks(SYS_DATA *psSysData)
 		{
 			PVR_ASSERT(pdata->device_scale != IMG_NULL);
 			res = pdata->device_scale(&gpsPVRLDMDev->dev,
-#if 0
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0))
 									  &gpsPVRLDMDev->dev,
 #endif
 									  psSysSpecData->pui32SGXFreqList[max_freq_index]);
@@ -312,7 +312,7 @@ IMG_VOID DisableSGXClocks(SYS_DATA *psSysData)
 		{
 			PVR_ASSERT(pdata->device_scale != IMG_NULL);
 			res = pdata->device_scale(&gpsPVRLDMDev->dev,
-#if 0
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0))
 									  &gpsPVRLDMDev->dev,
 #endif
 									  psSysSpecData->pui32SGXFreqList[0]);
@@ -791,7 +791,7 @@ PVRSRV_ERROR SysDvfsDeinitialize(SYS_SPECIFIC_DATA *psSysSpecificData)
 
 		PVR_ASSERT(pdata->device_scale != IMG_NULL);
 		res = pdata->device_scale(&gpsPVRLDMDev->dev,
-#if 0
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0))
 								  &gpsPVRLDMDev->dev,
 #endif
 								  psSysSpecificData->pui32SGXFreqList[0]);
