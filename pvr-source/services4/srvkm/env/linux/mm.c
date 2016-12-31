@@ -435,7 +435,9 @@ DebugMemAllocRecordTypeToString(DEBUG_MEM_ALLOC_TYPE eAllocType)
 	"VMAP"
 #endif
     };
+#pragma GCC diagnostic warning "-Warray-bounds"
     return apszDebugMemoryRecordTypes[eAllocType];
+#pragma GCC diagnostic pop
 }
 #endif
 
