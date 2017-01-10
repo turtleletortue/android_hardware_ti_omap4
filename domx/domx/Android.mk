@@ -46,6 +46,10 @@ LOCAL_SRC_FILES += ../../libion/ion_ti_custom.c
 LOCAL_C_INCLUDES += $(HARDWARE_TI_OMAP4_BASE)/libion
 endif
 
+ifeq ($(BOARD_USE_NEW_PVR),true)
+	LOCAL_CFLAGS += -DUSE_NEW_PVR
+endif
+
 ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),tuna)
 	LOCAL_CFLAGS += -DDOMX_TUNA
 endif

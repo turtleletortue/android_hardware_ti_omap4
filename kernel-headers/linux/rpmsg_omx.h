@@ -21,7 +21,11 @@
 #include <linux/ioctl.h>
 struct omx_pvr_data {
 /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+#ifdef USE_NEW_PVR
+ int fds[2];
+#else
  int fd;
+#endif
  unsigned int num_handles;
  void *handles[2];
 };
